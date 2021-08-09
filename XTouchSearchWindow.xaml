@@ -1,0 +1,30 @@
+﻿<adonisControls:AdonisWindow x:Name="XTouchSearch" x:Class="MidiApp.XtouchSearcher"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:adonisControls="clr-namespace:AdonisUI.Controls;assembly=AdonisUI"                          
+        xmlns:adonisUi="clr-namespace:AdonisUI;assembly=AdonisUI"
+        xmlns:local="clr-namespace:MidiApp"
+        mc:Ignorable="d"
+        Title="Looking for X-Touch" Height="289.726" Width="569.452" ShowInTaskbar="False" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" WindowStyle="None">
+    <Grid>
+        <Image x:Name="XTouch_jpg" Margin="160,10,159,60" Source="XTouch.png" Stretch="Fill"/>
+        <Label x:Name="label" Content="Looking for X-Touch..." HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="20"/>
+        <Label x:Name="questionMark" Content="?" HorizontalAlignment="Left" Margin="253,64,0,0" VerticalAlignment="Top" FontSize="96" FontFamily="Arial" FontWeight="Bold" Height="107" Width="71" Foreground="White" RenderTransformOrigin="0.478,0.87" Visibility="Hidden">
+            <Label.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform/>
+                    <SkewTransform AngleY="7.695"/>
+                    <RotateTransform/>
+                    <TranslateTransform Y="4.585"/>
+                </TransformGroup>
+            </Label.RenderTransform>
+            <Label.Effect>
+                <DropShadowEffect/>
+            </Label.Effect>
+        </Label>
+        <Button x:Name="button" Content="Cancel" HorizontalAlignment="Left" Margin="472,249,0,0" VerticalAlignment="Top" Width="75" IsCancel="True"/>
+        <TextBox x:Name="Text" HorizontalAlignment="Left" Height="23" Margin="160,215,0,0" TextWrapping="Wrap" Text="TextBox" VerticalAlignment="Top" Width="250"/>
+    </Grid>
+</adonisControls:AdonisWindow>
