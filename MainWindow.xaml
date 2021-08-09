@@ -7,7 +7,7 @@
         xmlns:adonisUi="clr-namespace:AdonisUI;assembly=AdonisUI"
         xmlns:local="clr-namespace:MidiApp"
         mc:Ignorable="d"
-        Title="MacicQ MIDI-link" Loaded="Window_Loaded" Closed="Window_Closed" PreviewLostKeyboardFocus="AdonisWindow_PreviewLostKeyboardFocus" d:DesignWidth="672" Height="551" MinWidth="400">
+        Title="MacicQ MIDI-link" Loaded="Window_Loaded" Closed="Window_Closed" PreviewLostKeyboardFocus="AdonisWindow_PreviewLostKeyboardFocus" d:DesignWidth="672" Width="680"  Height="551" MinWidth="400">
     <Window.Style>
         <Style TargetType="Window" BasedOn="{StaticResource {x:Type Window}}"/>
     </Window.Style>
@@ -19,8 +19,8 @@
             <RowDefinition Height="39"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="329*"/>
-            <ColumnDefinition Width="311*"/>
+            <ColumnDefinition Width="1*"/>
+            <ColumnDefinition Width="1*"/>
         </Grid.ColumnDefinitions>
         <GroupBox x:Name="groupBox_Left" Header="Activity" Margin="5,4,5,0" Grid.Column="0" Grid.Row="1">
             <Grid Margin="0,10,0,0">
@@ -56,13 +56,13 @@
             <ListBox x:Name="channelListBox" Margin="0"/>
         </GroupBox>
         <GroupBox x:Name="groupBox_Spots" Header="Follow Spots" Margin="5,4,5,0" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2">
-            <DataGrid x:Name="FollwSpot_dataGrid" HorizontalContentAlignment="Stretch" SelectionChanged="FollwSpot_dataGrid_SelectionChanged">
+            <DataGrid x:Name="FollwSpot_dataGrid" SelectionChanged="FollwSpot_dataGrid_SelectionChanged" IsReadOnly="True" AutoGenerateColumns="True" CanUserReorderColumns="False" ColumnWidth="*" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Binding="{x:Null}" ClipboardContentBinding="{x:Null}" Header="Head"/>
-                    <DataGridTextColumn Binding="{x:Null}" ClipboardContentBinding="{x:Null}" Header="DMX Base"/>
-                    <DataGridTextColumn Binding="{x:Null}" ClipboardContentBinding="{x:Null}" Header="Pan"/>
-                    <DataGridTextColumn Binding="{x:Null}" ClipboardContentBinding="{x:Null}" Header="Tilt"/>
-                    <DataGridCheckBoxColumn Binding="{x:Null}" ClipboardContentBinding="{x:Null}" Header="Active"/>
+                    <DataGridTextColumn Binding="{Binding Head}" ClipboardContentBinding="{x:Null}" Header="Head"/>
+                    <DataGridTextColumn Binding="{Binding DMX_Base }" ClipboardContentBinding="{x:Null}" Header="DMX Base"/>
+                    <DataGridTextColumn Binding="{Binding Pan}" ClipboardContentBinding="{x:Null}" Header="Pan"/>
+                    <DataGridTextColumn Binding="{Binding Tilt}" ClipboardContentBinding="{x:Null}" Header="Tilt"/>
+                    <DataGridCheckBoxColumn Binding="{Binding IsActive}" ClipboardContentBinding="{x:Null}" Header="Active"/>
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>

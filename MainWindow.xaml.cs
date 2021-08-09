@@ -29,8 +29,8 @@ namespace MidiApp
     {
 
 
-        //static string MIDI_DEVICE_NAME = "LoopBe";
-        static string MIDI_DEVICE_NAME = "X-TOUCH";
+        static string MIDI_DEVICE_NAME = "LoopBe";
+        //static string MIDI_DEVICE_NAME = "X-TOUCH";
         public OscSender sender;
         public OscReceiver receiver;
 
@@ -41,6 +41,7 @@ namespace MidiApp
 
         public Thread m_Thread = null;
         public Thread activity_Thread = null;
+        public Thread m_ThreadArtNet = null;
         public Thread mqConnection_Thread = null;
         public String MQhostname = "not connected";
         public String MQshowfile = "not connected";
@@ -72,7 +73,7 @@ namespace MidiApp
 
         SynchronizationContext context;
 
-//        IPAddress address = null;
+        //        IPAddress address = null;
 
         bool[] buttons;
         float[] faders;
@@ -98,7 +99,7 @@ namespace MidiApp
             }
             context = SynchronizationContext.Current;
 
-            for (int i =0; i<attributeNames.Length; i++)
+            for (int i = 0; i < attributeNames.Length; i++)
             {
                 attributes.Add(attributeNames[i], i);
             }
@@ -117,7 +118,7 @@ namespace MidiApp
                         progress.Report("Searching.");
                         for (var d = 0; d < InputDevice.DeviceCount; d++)
                         {
-//                            Console.WriteLine("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
+                            Console.WriteLine("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
 
                             if (InputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
                             {
@@ -134,7 +135,7 @@ namespace MidiApp
                         progress.Report("Searching..");
                         for (var d = 0; d < OutputDevice.DeviceCount; d++)
                         {
-//                            Console.WriteLine("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
+                            Console.WriteLine("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
                             if (OutputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
                             {
                                 outDevice = new OutputDevice(d);
@@ -184,7 +185,7 @@ namespace MidiApp
         public void activity(int type)
         {
             activityTimer.Restart();
-            if (context!= null) {
+            if (context != null) {
                 context.Post(delegate (object dummy)
                 {
                     ActivityLED.Fill = GreenFill;
@@ -216,119 +217,6 @@ namespace MidiApp
                 catch (ThreadInterruptedException)
                 {
 
-                }
-
-            }
-        }
-
-        void mqConnection_Monitor_old()
-        {
-            byte[] bytes = new byte[8192];
-            bool connected = false;
-
-            while (true)
-            {
-                //try
-                //{
-                //    Thread.Sleep(2000);
-                //    if (connectionTimer.ElapsedMilliseconds > 2000)
-                //    {
-                //        sender.Send(new OscMessage("/exec/2/17",1.0f));
-                //        Console.WriteLine("Ping!");
-                //    }
-
-                //    if (connectionTimer.ElapsedMilliseconds > 4500)
-                //    {
-                //        context.Post(delegate (object dummy)
-                //        {
-                //            ConnectionLED.Fill = RedFill;
-                //        }, null);
-                //    }
-                //}
-                //catch (ThreadInterruptedException)
-                //{
-
-                //}
-                try
-                {
-                    connected = false;
-                    if (MQ_IPAddress != null)
-                    {
-                        IPEndPoint remoteEP = new IPEndPoint(MQ_IPAddress, 8080);
-                        // Create a TCP/IP  socket.  
-                        Socket sender = new Socket(MQ_IPAddress.AddressFamily,
-                            SocketType.Stream, ProtocolType.Tcp);
-
-                        sender.Connect(remoteEP);
-
-                        int bytesSent = sender.Send(Encoding.ASCII.GetBytes("GET / HTTP/1.0\n\n"));
-
-                        int bytesRec = 0;
-
-                        bytesRec += sender.Receive(bytes, bytesRec, bytes.Length - bytesRec, SocketFlags.None);
-
-                        Thread.Sleep(500);
-                        
-                        while (sender.Available>0)
-                        {
-                            bytesRec += sender.Receive(bytes, bytesRec, bytes.Length - bytesRec, SocketFlags.None);
-                        }
-
-                        sender.Shutdown(SocketShutdown.Both);
-                        sender.Close();
-
-                        String response = Encoding.ASCII.GetString(bytes, 0, bytesRec);
-///                        Console.WriteLine(response);
-
-                        Match match = Regex.Match(response, " summary=\"([A-Za-z0-9\\-]+) MagicQ\"", RegexOptions.IgnoreCase);
-
-                        if (match.Success)
-                        {
-                            MQhostname = match.Groups[1].Value;
-                            connected = true;
-
-                            match = Regex.Match(response, "Show<TD>.*/([^/]+.s\\w\\w)", RegexOptions.IgnoreCase);
-
-                            if (match.Success)
-                            {
-                                MQshowfile = match.Groups[1].Value;
-                            }
-
-                            if (context != null)
-                            {
-                                context.Post(delegate (object dummy)
-                                {
-                                    ConnectionLED.Fill = GreenFill;
-                                    textBoxMQHost.Text = MQhostname;
-                                    textBoxMQshowfile.Text = MQshowfile;
-                                }, null);
-                            }
-                        }
-
-                    }
-
-                } catch (SocketException)
-                {
-
-                }
-
-                if (!connected)
-                {
-                    if (context != null)
-                    {
-                        context.Post(delegate (object dummy)
-                        {
-                            ConnectionLED.Fill = RedFill;
-                            textBoxMQHost.Text = "not connected.";
-                            textBoxMQshowfile.Text = "not connected.";
-                        }, null);
-                    }
-
-                    Thread.Sleep(1000);
-                }
-                else
-                {
-                    Thread.Sleep(3000);
                 }
 
             }
@@ -474,7 +362,7 @@ namespace MidiApp
                                 channelListBox.SelectedIndex = channelListBox.Items.Count - 1;
 
                             }, null);
-                        }
+                    }
                 }
                 catch (System.Exception)
                 {
@@ -511,7 +399,7 @@ namespace MidiApp
             }
 
             attrName.Text = attributeNames[selected_Attribute];
-            
+
             try
             {
                 GreenFill = new RadialGradientBrush(Color.FromRgb(0x1D, 0xFF, 0x1D), Color.FromRgb(0x00, 0xB9, 0x00));
@@ -575,7 +463,7 @@ namespace MidiApp
                 for (var i = 0; i < 39; i++)
                 {
                     builder.Data1 = i;
-                    builder.Data2 = (i==32)?2:0;
+                    builder.Data2 = (i == 32) ? 2 : 0;
                     builder.Build();
                     outDevice.Send(builder.Result);
                 }
@@ -587,6 +475,38 @@ namespace MidiApp
                 m_Thread.IsBackground = true;
                 m_Thread.Start();
 
+
+                List<Follow_Spot> spots = new List<Follow_Spot>();
+
+
+                Follow_Spot fs = new Follow_Spot();
+                fs.Head = 23;
+                fs.Universe = 1;
+                fs.Address = 1;
+                fs.IsActive = false;
+                spots.Add(fs);
+
+                fs = new Follow_Spot();
+                fs.Head = 24;
+                fs.Universe = 1;
+                fs.Address = 25;
+                fs.IsActive = false;
+                spots.Add(fs);
+
+                fs = new Follow_Spot();
+                fs.Head = 25;
+                fs.Universe = 1;
+                fs.Address = 51;
+                fs.IsActive = false;
+                spots.Add(fs);
+
+                FollwSpot_dataGrid.ItemsSource = spots;
+
+                m_ThreadArtNet = new Thread(new ThreadStart(ArtNetListner));
+                m_ThreadArtNet.IsBackground = true;
+                m_ThreadArtNet.Start();
+
+
             }
             catch (Exception ex)
             {
@@ -597,6 +517,31 @@ namespace MidiApp
 
             // this.Topmost = true;
         }
+
+        void ArtNetListner()
+        {
+            while (true)
+            {
+                try
+                {
+
+                }
+                catch (System.Exception)
+                {
+
+                }
+
+                try
+                {
+                    Thread.Sleep(100);
+                }
+                catch (System.Threading.ThreadInterruptedException)
+                {
+
+                }
+            }
+        }
+ 
 
         private void Window_Closed(object sender, EventArgs e)
         {
@@ -957,5 +902,23 @@ namespace MidiApp
         {
 
         }
+
     }
+
+    public class Follow_Spot
+    {
+        public int Head { get; set; }
+        public int Universe { get; set; }
+        public int Address { get; set; }
+
+        public string DMX_Base
+        {
+            get => Universe.ToString() + "-" + Address.ToString();
+        }
+
+        public float Pan { get; set; }
+        public float Tilt { get; set; }
+        public bool IsActive { get; set; }
+    }
+
 }
