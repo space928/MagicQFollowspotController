@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -14,6 +17,10 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using LXProtocols.Acn.Rdm;
+using LXProtocols.Acn.Sockets;
+using LXProtocols.ArtNet.Packets;
+using LXProtocols.ArtNet.Sockets;
 using Rug.Osc;
 using Sanford.Multimedia;
 using Sanford.Multimedia.Midi;
@@ -41,7 +48,7 @@ namespace MidiApp
 
         public Thread m_Thread = null;
         public Thread activity_Thread = null;
-        public Thread m_ThreadArtNet = null;
+        public ArtNetSocket m_socket = null;
         public Thread mqConnection_Thread = null;
         public String MQhostname = "not connected";
         public String MQshowfile = "not connected";
@@ -502,9 +509,7 @@ namespace MidiApp
 
                 FollwSpot_dataGrid.ItemsSource = spots;
 
-                m_ThreadArtNet = new Thread(new ThreadStart(ArtNetListner));
-                m_ThreadArtNet.IsBackground = true;
-                m_ThreadArtNet.Start();
+                ArtNetListner();
 
 
             }
@@ -518,30 +523,59 @@ namespace MidiApp
             // this.Topmost = true;
         }
 
-        void ArtNetListner()
+
+        public static IEnumerable<(IPAddress Address, IPAddress NetMask)> GetAddressesFromInterfaceType(NetworkInterfaceType? interfaceType = null,
+    Func<NetworkInterface, bool> predicate = null)
         {
-            while (true)
+            foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
             {
-                try
+                if (adapter.SupportsMulticast && (!interfaceType.HasValue || adapter.NetworkInterfaceType == interfaceType) &&
+                    adapter.OperationalStatus == OperationalStatus.Up)
                 {
+                    if (predicate != null)
+                        if (!predicate(adapter))
+                            continue;
 
-                }
-                catch (System.Exception)
-                {
+                    IPInterfaceProperties ipProperties = adapter.GetIPProperties();
 
-                }
-
-                try
-                {
-                    Thread.Sleep(100);
-                }
-                catch (System.Threading.ThreadInterruptedException)
-                {
-
+                    foreach (var ipAddress in ipProperties.UnicastAddresses)
+                    {
+                        if (ipAddress.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                            yield return (ipAddress.Address, ipAddress.IPv4Mask);
+                    }
                 }
             }
         }
+
+        void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
+        {
+            //Console.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
+
+            context.Post(delegate (object dummy)
+            {
+                ((Follow_Spot)(FollwSpot_dataGrid.Items[0])).Pan = e.Packet.GetHashCode();
+            }, null);
+
+
+        }
+        void ArtNetListner()
+        {
+            UId id = new UId(0,0);
+
+            m_socket = new ArtNetSocket(id)
+            {
+                EnableBroadcast = false
+            };
+
+            m_socket.NewPacket += ArtNet_NewPacket;
+
+            var addresses = GetAddressesFromInterfaceType();
+            var addr = addresses.ToArray()[2];
+
+            m_socket.Open(addr.Address, addr.NetMask);
+        }
  
+
 
         private void Window_Closed(object sender, EventArgs e)
         {
@@ -905,8 +939,13 @@ namespace MidiApp
 
     }
 
-    public class Follow_Spot
+    public class Follow_Spot : INotifyPropertyChanged
     {
+        private float pan;
+        private float tilt;
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
         public int Head { get; set; }
         public int Universe { get; set; }
         public int Address { get; set; }
@@ -916,9 +955,17 @@ namespace MidiApp
             get => Universe.ToString() + "-" + Address.ToString();
         }
 
-        public float Pan { get; set; }
-        public float Tilt { get; set; }
+        public float Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
+        public float Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
         public bool IsActive { get; set; }
+
+        // Create the OnPropertyChanged method to raise the event
+        // The calling member's name will be used as the parameter.
+        protected void OnPropertyChanged([CallerMemberName] string name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+
     }
 
 }

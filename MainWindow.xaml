@@ -56,12 +56,12 @@
             <ListBox x:Name="channelListBox" Margin="0"/>
         </GroupBox>
         <GroupBox x:Name="groupBox_Spots" Header="Follow Spots" Margin="5,4,5,0" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2">
-            <DataGrid x:Name="FollwSpot_dataGrid" SelectionChanged="FollwSpot_dataGrid_SelectionChanged" IsReadOnly="True" AutoGenerateColumns="True" CanUserReorderColumns="False" ColumnWidth="*" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <DataGrid x:Name="FollwSpot_dataGrid" SelectionChanged="FollwSpot_dataGrid_SelectionChanged" IsReadOnly="True" AutoGenerateColumns="False" CanUserReorderColumns="False" ColumnWidth="*" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Binding="{Binding Head}" ClipboardContentBinding="{x:Null}" Header="Head"/>
-                    <DataGridTextColumn Binding="{Binding DMX_Base }" ClipboardContentBinding="{x:Null}" Header="DMX Base"/>
-                    <DataGridTextColumn Binding="{Binding Pan}" ClipboardContentBinding="{x:Null}" Header="Pan"/>
-                    <DataGridTextColumn Binding="{Binding Tilt}" ClipboardContentBinding="{x:Null}" Header="Tilt"/>
+                    <DataGridTextColumn Binding="{Binding Head, Mode = OneWay}" ClipboardContentBinding="{x:Null}" Header="Head"/>
+                    <DataGridTextColumn Binding="{Binding DMX_Base, Mode = OneWay }" ClipboardContentBinding="{x:Null}" Header="DMX Base"/>
+                    <DataGridTextColumn Binding="{Binding Pan, Mode = OneWay}" ClipboardContentBinding="{x:Null}" Header="Pan"/>
+                    <DataGridTextColumn Binding="{Binding Tilt, Mode = OneWay}" ClipboardContentBinding="{x:Null}" Header="Tilt"/>
                     <DataGridCheckBoxColumn Binding="{Binding IsActive}" ClipboardContentBinding="{x:Null}" Header="Active"/>
                 </DataGrid.Columns>
             </DataGrid>
