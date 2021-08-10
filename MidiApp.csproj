@@ -44,12 +44,6 @@
     <Reference Include="AdonisUI.ClassicTheme, Version=1.17.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\AdonisUI.ClassicTheme.1.17.0\lib\net45\AdonisUI.ClassicTheme.dll</HintPath>
     </Reference>
-    <Reference Include="LXProtocols.Acn, Version=3.0.3.7, Culture=neutral, PublicKeyToken=005de0e0a5e51e6d, processorArchitecture=MSIL">
-      <HintPath>packages\LXProtocols.Acn.3.0.3.7\lib\netstandard2.0\LXProtocols.Acn.dll</HintPath>
-    </Reference>
-    <Reference Include="LXProtocols.ArtNet, Version=3.0.3.7, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\LXProtocols.ArtNet.3.0.3.7\lib\netstandard2.0\LXProtocols.ArtNet.dll</HintPath>
-    </Reference>
     <Reference Include="Rug.Osc, Version=1.2.5.17694, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\Rug.Osc.1.2.5\lib\Rug.Osc.dll</HintPath>
     </Reference>
@@ -144,6 +138,12 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="XTouch.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Haukcode.ArtNet\ArtNet\ArtNet.csproj">
+      <Project>{216D055D-904D-4AAA-899A-7F780AEE9AEA}</Project>
+      <Name>ArtNet</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

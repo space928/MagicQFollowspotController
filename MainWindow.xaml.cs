@@ -17,10 +17,9 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
-using LXProtocols.Acn.Rdm;
-using LXProtocols.Acn.Sockets;
-using LXProtocols.ArtNet.Packets;
-using LXProtocols.ArtNet.Sockets;
+using Haukcode.ArtNet.Packets;
+using Haukcode.ArtNet.Sockets;
+using Haukcode.Sockets;
 using Rug.Osc;
 using Sanford.Multimedia;
 using Sanford.Multimedia.Midi;
@@ -49,6 +48,8 @@ namespace MidiApp
         public Thread m_Thread = null;
         public Thread activity_Thread = null;
         public ArtNetSocket m_socket = null;
+        public List<Follow_Spot> m_spots = new List<Follow_Spot>();
+
         public Thread mqConnection_Thread = null;
         public String MQhostname = "not connected";
         public String MQshowfile = "not connected";
@@ -433,7 +434,7 @@ namespace MidiApp
                 inDevice.SysRealtimeMessageReceived += HandleSysRealtimeMessageReceived;
                 inDevice.Error += new EventHandler<ErrorEventArgs>(inDevice_Error);
 
-                inDevice.StartRecording();
+                //inDevice.StartRecording();
 
                 ChannelMessageBuilder builder = new ChannelMessageBuilder();
 
@@ -482,32 +483,34 @@ namespace MidiApp
                 m_Thread.IsBackground = true;
                 m_Thread.Start();
 
-
-                List<Follow_Spot> spots = new List<Follow_Spot>();
-
-
                 Follow_Spot fs = new Follow_Spot();
-                fs.Head = 23;
+                fs.Head = 301;
                 fs.Universe = 1;
-                fs.Address = 1;
+                fs.Address = 120;
                 fs.IsActive = false;
-                spots.Add(fs);
+                m_spots.Add(fs);
 
                 fs = new Follow_Spot();
-                fs.Head = 24;
+                fs.Head = 302;
                 fs.Universe = 1;
-                fs.Address = 25;
+                fs.Address = 144;
                 fs.IsActive = false;
-                spots.Add(fs);
+                m_spots.Add(fs);
 
                 fs = new Follow_Spot();
-                fs.Head = 25;
+                fs.Head = 305;
                 fs.Universe = 1;
-                fs.Address = 51;
+                fs.Address = 415;
                 fs.IsActive = false;
-                spots.Add(fs);
+                m_spots.Add(fs);
 
-                FollwSpot_dataGrid.ItemsSource = spots;
+                fs = new Follow_Spot();
+                fs.Head = 306;
+                fs.Universe = 1;
+                fs.Address = 439;
+                fs.IsActive = false;
+                m_spots.Add(fs);
+                FollwSpot_dataGrid.ItemsSource = m_spots;
 
                 ArtNetListner();
 
@@ -553,19 +556,26 @@ namespace MidiApp
 
             context.Post(delegate (object dummy)
             {
-                ((Follow_Spot)(FollwSpot_dataGrid.Items[0])).Pan = e.Packet.GetHashCode();
+                if (e.Packet.OpCode == Haukcode.ArtNet.ArtNetOpCodes.Dmx)
+                {
+                    ArtNetDmxPacket dmx = (ArtNetDmxPacket)e.Packet;
+
+                    foreach (Follow_Spot spot in m_spots)
+                    {
+                        if (dmx.Universe == spot.Universe-1)
+                        {
+                            spot.Pan = (float)Math.Round(((dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address]) / 65535.0 * 540.0 - 270.0, 1);
+                            spot.Tilt = (float)Math.Round(((dmx.DmxData[spot.Address+1] * 256) + dmx.DmxData[spot.Address + 2]) / 65535.0 * 270.0 - 135.0, 1);
+                        }
+                    }
+                }
             }, null);
 
 
         }
         void ArtNetListner()
         {
-            UId id = new UId(0,0);
-
-            m_socket = new ArtNetSocket(id)
-            {
-                EnableBroadcast = false
-            };
+            m_socket = new ArtNetSocket();
 
             m_socket.NewPacket += ArtNet_NewPacket;
 
@@ -967,5 +977,6 @@ namespace MidiApp
         }
 
     }
+
 
 }
