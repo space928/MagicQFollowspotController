@@ -1,0 +1,35 @@
+﻿<Window x:Name="ThreeD1" x:Class="MidiApp.ThreeD"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:HelixToolkit="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
+        xmlns:helix="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf" 
+
+        xmlns:local="clr-namespace:MidiApp"
+        mc:Ignorable="d"
+        Title="3D View" Height="542.82" Width="800" Activated="Window_Activated" MouseMove="Window_MouseMove" Topmost="True">
+    <Window.Background>
+        <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.MenuTextColorKey}}"/>
+    </Window.Background>
+
+    <Window.DataContext>
+        <local:MainViewModel />
+    </Window.DataContext>
+
+    <Grid>
+            
+        <helix:HelixViewport3D x:Name="viewport3D" Grid.Row="1" MouseMove="HelixViewport3D_MouseMove">
+            <helix:DefaultLights/>
+
+            <!--  The content of this visual is defined in MainViewModel.cs  -->
+            <ModelVisual3D Content="{Binding Model}" />
+
+            <helix:GridLinesVisual3D Center="0 0 -0.1" Fill="DarkGreen"/>
+
+            <helix:EllipsoidVisual3D Center="0 0 0" Fill="Green" RadiusX="0.45" RadiusY="0.3" RadiusZ="0.45"/>
+            <helix:RectangleVisual3D Origin="-4 0 0" Width="0.9" Length="0.7" Fill="Tomato" Normal="0,0,1" />
+            <helix:RectangleVisual3D Origin="0 0 0" Width="18.45" Length="12.9" Fill="Tomato" Normal="0,-0.1,1" />
+        </helix:HelixViewport3D>
+    </Grid>
+</Window>

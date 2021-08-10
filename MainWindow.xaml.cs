@@ -373,7 +373,7 @@ namespace MidiApp
 
                                     context.Post(delegate (object dummy)
                                     {
-                                        Window1 window1 = new Window1();
+                                        ThreeD window1 = new ThreeD();
                                         window1.grab();
 
                                     }, null);
@@ -565,6 +565,9 @@ namespace MidiApp
                 FollwSpot_dataGrid.ItemsSource = m_spots;
 
                 ArtNetListner();
+
+                ThreeD window1 = new ThreeD();
+                window1.grab();
 
 
             }
