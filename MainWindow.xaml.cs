@@ -16,6 +16,7 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using Haukcode.ArtNet.Packets;
 using Haukcode.ArtNet.Sockets;
@@ -257,6 +258,7 @@ namespace MidiApp
                         OscPacket pkt = receiver.Receive();
                         justRecieved = true;
 
+                        Console.WriteLine("OSC Packet: " + pkt.ToString());
                         activity(1);
                         activityMQ(1);
 
@@ -343,8 +345,54 @@ namespace MidiApp
                             }
 
                         }
+                        else if (parts[1].Equals("fspot"))
+                        {
+                            if (parts.Length>=2)
+                            {
+                                if (parts[2] == "start")
+                                {
+                                    string ids = msg.ToString();
+                                    if (!ids.EndsWith("/"))
+                                    {
+                                        ids = ids.Substring(ids.LastIndexOf('/') + 1);
 
-                        if (logging)
+                                        foreach (string idspot in ids.Split(','))
+                                        {
+                                            int headId = Int32.Parse(idspot);
+
+                                            foreach (Follow_Spot spot in m_spots)
+                                            {
+                                                if (spot.Head == headId)
+                                                {
+                                                    spot.IsActive = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    context.Post(delegate (object dummy)
+                                    {
+                                        Window1 window1 = new Window1();
+                                        window1.grab();
+
+                                    }, null);
+
+
+
+                                }
+                                else if (parts[2] == "stop")
+                                {
+                                    foreach( Follow_Spot spot in m_spots)
+                                    {
+                                        spot.IsActive = false;
+                                    }
+                                }
+                            }
+                           // m_spots[0].IsActive = true;
+                        }
+
+                            if (logging)
                             context.Post(delegate (object dummy)
                             {
                                 if (parts.Length > 3)
@@ -389,6 +437,10 @@ namespace MidiApp
             }
         }
 
+        public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            Console.WriteLine("Mouse position" + e.GetPosition(this));
+        }
 
         private void Window_Loaded(object source, RoutedEventArgs e)
         {
@@ -953,6 +1005,7 @@ namespace MidiApp
     {
         private float pan;
         private float tilt;
+        private bool isActive;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -967,7 +1020,7 @@ namespace MidiApp
 
         public float Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
         public float Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
-        public bool IsActive { get; set; }
+        public bool IsActive { get => isActive; set { isActive = value; OnPropertyChanged(); } }
 
         // Create the OnPropertyChanged method to raise the event
         // The calling member's name will be used as the parameter.
