@@ -16,6 +16,7 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Haukcode.ArtNet.Packets;
@@ -49,11 +50,16 @@ namespace MidiApp
         public Thread m_Thread = null;
         public Thread activity_Thread = null;
         public ArtNetSocket m_socket = null;
-        public List<Follow_Spot> m_spots = new List<Follow_Spot>();
+        public ArtNetSocket m_TXsocket = null;
+        public static List<Follow_Spot> m_spots = new List<Follow_Spot>();
 
         public Thread mqConnection_Thread = null;
         public String MQhostname = "not connected";
         public String MQshowfile = "not connected";
+
+        public string resourceFileName = @"..\..\resources.json";
+        public static dynamic AppResources;
+        public Thread m_ResourceLoader_Thread = null;
 
         bool logging = false;
 
@@ -112,8 +118,47 @@ namespace MidiApp
             {
                 attributes.Add(attributeNames[i], i);
             }
+
+
+            AppResources = getAppResource();
+            m_ResourceLoader_Thread = new Thread(new ThreadStart(resourceLoaderLoop));
+            m_ResourceLoader_Thread.IsBackground = true;
+            m_ResourceLoader_Thread.Start();
+
         }
 
+        public dynamic getAppResource()
+        {
+            var res = System.IO.File.ReadAllText(resourceFileName);
+
+            return Newtonsoft.Json.JsonConvert.DeserializeObject(res);
+        }
+        public void resourceLoaderLoop()
+        {
+            DateTime time = System.IO.File.GetLastWriteTime(resourceFileName);
+                
+            while (true)
+            {
+                try
+                {
+                    DateTime latestTime = System.IO.File.GetLastWriteTime(resourceFileName);
+
+                    if (latestTime > time)
+                    {
+                        AppResources = getAppResource();
+                        time = latestTime;
+                    }
+                    else
+                    {
+                        Thread.Sleep(1000);
+                    }
+                }
+                catch (ThreadInterruptedException)
+                {
+
+                }
+            }
+        }
 
         public void LookForXTouch()
         {
@@ -535,33 +580,26 @@ namespace MidiApp
                 m_Thread.IsBackground = true;
                 m_Thread.Start();
 
-                Follow_Spot fs = new Follow_Spot();
-                fs.Head = 301;
-                fs.Universe = 1;
-                fs.Address = 120;
-                fs.IsActive = false;
-                m_spots.Add(fs);
+                foreach(dynamic v  in AppResources.Lights)
+                {
+                    Follow_Spot spot = new Follow_Spot();
+                    spot.Head = v.Head;
+                    spot.Universe = v.Universe;
+                    spot.Address = v.Address;
+                    spot.IsActive = false;
 
-                fs = new Follow_Spot();
-                fs.Head = 302;
-                fs.Universe = 1;
-                fs.Address = 144;
-                fs.IsActive = false;
-                m_spots.Add(fs);
+                    Point3D p;
+                    switch ((int)v.Bar)
+                    {
+                        case 0: p = new Point3D((double)v.XOffset, 0.0, (double)AppResources.Bar0Height + 0.1); break;
+                        case -1: p = new Point3D((double)v.XOffset, (double)AppResources.BarAudienceOffset, (double)AppResources.BarAudienceHeight + 0.1); break;
+                        case 1: p = new Point3D((double)v.XOffset, (double)AppResources.Bar1Offset, (double)AppResources.Bar1Height + 0.1); break;
+                        default: p = new Point3D((double)v.XOffset, (double)AppResources.Bar2Offset, (double)AppResources.Bar2Height + 0.1); break;
+                    }
+                    spot.Location = p;
 
-                fs = new Follow_Spot();
-                fs.Head = 305;
-                fs.Universe = 1;
-                fs.Address = 415;
-                fs.IsActive = false;
-                m_spots.Add(fs);
-
-                fs = new Follow_Spot();
-                fs.Head = 306;
-                fs.Universe = 1;
-                fs.Address = 439;
-                fs.IsActive = false;
-                m_spots.Add(fs);
+                    m_spots.Add(spot);
+                }
                 FollwSpot_dataGrid.ItemsSource = m_spots;
 
                 ArtNetListner();
@@ -631,6 +669,7 @@ namespace MidiApp
         void ArtNetListner()
         {
             m_socket = new ArtNetSocket();
+            m_TXsocket = new ArtNetSocket();
 
             m_socket.NewPacket += ArtNet_NewPacket;
 
@@ -638,8 +677,12 @@ namespace MidiApp
             var addr = addresses.ToArray()[2];
 
             m_socket.Open(addr.Address, addr.NetMask);
+
+            addr = addresses.ToArray()[0];
+            m_TXsocket.Open(addr.Address, addr.NetMask);
+
         }
- 
+
 
 
         private void Window_Closed(object sender, EventArgs e)
@@ -1002,6 +1045,45 @@ namespace MidiApp
 
         }
 
+        private byte ArtNetSequence = 0;
+        public void PointSpot(Point3D point)
+        {
+            byte[] packet = new byte[512];
+
+            foreach (Follow_Spot spot in m_spots)
+//                Follow_Spot spot = m_spots[0];
+            {
+                Vector3D p = (point- spot.Location);
+                Point3D direction = Spherical.ToSpherical(-p.Y, p.X, p.Z);
+                direction.Y += 90;
+
+                direction = Spherical.MinSphericalMove(new Point3D(1, spot.Tilt, spot.Pan), direction);
+                spot.Tilt = (float)direction.Y;
+                spot.Pan = (float)direction.Z;
+
+//                Console.WriteLine("DeltaX: {0:N2}, DeltaY: {1:N2}, Pan: {2:N2}, Tilt: {3:N2}", p.X, p.Y, spot.Pan, spot.Tilt);
+
+                int PanDMX = (int)(((spot.Pan + 270.0) / 540.0) * 65535.0);
+                int TiltDMX = (int)(((spot.Tilt + 135.0) / 270.0) * 65535.0);
+
+                packet[spot.Address - 1] = (byte)(PanDMX / 256);
+                packet[spot.Address] = (byte)(PanDMX % 256);
+                packet[spot.Address + 1] = (byte)(TiltDMX / 256);
+                packet[spot.Address + 2] = (byte)(TiltDMX % 256);
+            }
+
+            //            sender.Send(new OscMessage("/rpc", "\\06," + (4) + "," + (pan) + ",0H", "\\06," + (4) + "," + (pan) + ",0H" + "\\06," + (5) + "," + (tilt) + ",0H"));
+            ArtNetSequence++;
+
+            m_TXsocket.Send(new ArtNetDmxPacket
+            {
+                Sequence = ArtNetSequence,
+                Physical =1,
+                Universe = 60,
+                DmxData = packet
+            }) ;
+
+        }
     }
 
     public class Follow_Spot : INotifyPropertyChanged
@@ -1010,8 +1092,10 @@ namespace MidiApp
         private float tilt;
         private bool isActive;
 
+
         public event PropertyChangedEventHandler PropertyChanged;
 
+        public Point3D Location { get; set; }
         public int Head { get; set; }
         public int Universe { get; set; }
         public int Address { get; set; }

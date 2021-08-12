@@ -8,7 +8,7 @@
 
         xmlns:local="clr-namespace:MidiApp"
         mc:Ignorable="d"
-        Title="3D View" Height="542.82" Width="800" Activated="Window_Activated" MouseMove="Window_MouseMove" Topmost="True">
+        Title="3D View" Height="542.82" Width="800" Activated="Window_Activated" MouseMove="Window_MouseMove" Topmost="True" KeyDown="ThreeD1_KeyDown">
     <Window.Background>
         <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.MenuTextColorKey}}"/>
     </Window.Background>
@@ -28,8 +28,7 @@
             <helix:GridLinesVisual3D Center="0 0 -0.1" Fill="DarkGreen"/>
 
             <helix:EllipsoidVisual3D Center="0 0 0" Fill="Green" RadiusX="0.45" RadiusY="0.3" RadiusZ="0.45"/>
-            <helix:RectangleVisual3D Origin="-4 0 0" Width="0.9" Length="0.7" Fill="Tomato" Normal="0,0,1" />
-            <helix:RectangleVisual3D Origin="0 0 0" Width="18.45" Length="12.9" Fill="Tomato" Normal="0,-0.1,1" />
+
         </helix:HelixViewport3D>
     </Grid>
 </Window>

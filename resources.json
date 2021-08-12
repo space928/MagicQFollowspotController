@@ -1,0 +1,58 @@
+{
+  "Width": 18.75,
+  "Length": 26,
+  "Roof": 10,
+  "StairLength": 12.9,
+  "StairStart": 3,
+  "StairHeight": 3.9,
+
+  "StageHeight": 1.0,
+  "StageStartt": -1.9,
+  "StageWidth": 12,
+  "StageDepth": 3,
+
+  "Bar0Height": 6.5,
+
+  "BarAudienceHeight": 7.5,
+  "BarAudienceOffset": -4.7,
+
+  "Bar1Height": 7.5,
+  "Bar1Offset": 5.7,
+
+  "Bar2Height": 7.5,
+  "Bar2Offset": 7,
+  "Lights": [
+    {
+      "Head": 301,
+      "Universe": 1,
+      "Address": 120,
+      "Bar": 0,
+      "XOffset": -2
+    },
+
+    {
+      "Head": 302,
+      "Universe": 1,
+      "Address": 144,
+      "Bar": 0,
+      "XOffset": 2
+    },
+
+    {
+      "Head": 305,
+      "Universe": 1,
+      "Address": 415,
+      "Bar": -1,
+      "XOffset": 1.5
+    },
+
+    {
+      "Head": 306,
+      "Universe": 1,
+      "Address": 439,
+      "Bar": -1,
+      "XOffset": -1.5
+    }
+  ]
+
+}

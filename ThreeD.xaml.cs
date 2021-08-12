@@ -31,13 +31,16 @@ namespace MidiApp
         }
 
         private Visual3D m_teapot;
+        private Visual3D m_beam;
+        //private Visual3D m_beam2;
+
 
         public void grab()
         {
-            Left = 0;
-            Top = 0;
-            Height = System.Windows.SystemParameters.PrimaryScreenHeight;
-            Width =  System.Windows.SystemParameters.PrimaryScreenWidth;
+            //Left = 0;
+            //Top = 0;
+            //Height = SystemParameters.PrimaryScreenHeight;
+            //Width =  SystemParameters.PrimaryScreenWidth;
 
 
             EllipsoidVisual3D e3d = new EllipsoidVisual3D();
@@ -46,9 +49,18 @@ namespace MidiApp
             e3d.RadiusX = e3d.RadiusY = e3d.RadiusZ = 1.0;
 
             m_teapot = e3d;
+            var beamMatrial = MaterialHelper.CreateMaterial(Colors.White, 0.5);
+            var beam = new MeshGeometryVisual3D();
+
+            beam.Material = beamMatrial;
+            beam.Transform = new TranslateTransform3D(0, 0, 0);
+            beam.BackMaterial = null;
+
+            m_beam = beam;
 
             viewport3D.Children.Add(m_teapot);
-            ShowDialog();
+            viewport3D.Children.Add(m_beam);
+            Show();
         }
 
 
@@ -60,11 +72,13 @@ namespace MidiApp
 
         private void Window_Activated(object sender, EventArgs e)
         {
-            SetCursor((int)Width / 2, (int)Height / 2);
+//            SetCursor((int)Width / 2, (int)Height / 2);
             //   Console.WriteLine("Catured: " + CaptureMouse());
 
-//            vertLine.Height = Height;
-//            horizLine.Width = Width;
+            //            vertLine.Height = Height;
+            //            horizLine.Width = Width;
+
+  //          Focus();
         }
 
         private void Window_MouseMove(object sender, MouseEventArgs e)
@@ -76,6 +90,8 @@ namespace MidiApp
         private void HelixViewport3D_MouseMove(object sender, MouseEventArgs e)
         {
             viewport3D.Children.Remove(m_teapot);
+            viewport3D.Children.Remove(m_beam);
+
             var pt = viewport3D.FindNearestPoint(e.GetPosition(viewport3D));
             if (pt != null)
             {
@@ -88,10 +104,30 @@ namespace MidiApp
 
 
                 m_teapot.Transform = at;
+
+
+                var mb = new MeshBuilder(true);
+                mb.AddCylinder(point, MainWindow.m_spots[0].Location, .1, 8);
+
+                ((MainWindow)App.Current.MainWindow).PointSpot(point);
+
+                ((MeshGeometryVisual3D)m_beam).MeshGeometry = mb.ToMesh();
+
+                viewport3D.Children.Add(m_beam);
+
                 viewport3D.Children.Add(m_teapot);
             }
 
         }
+
+        private void ThreeD1_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                Close();
+            }
+        }
+
     }
 
 }
