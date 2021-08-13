@@ -10,6 +10,8 @@
 namespace MidiApp
 {
     using System.Collections.Generic;
+    using System.ComponentModel;
+    using System.Runtime.CompilerServices;
     using System.Windows;
     using System.Windows.Media;
     using System.Windows.Media.Media3D;
@@ -19,13 +21,18 @@ namespace MidiApp
     /// <summary>
     /// Provides a ViewModel for the Main window.
     /// </summary>
-    public class MainViewModel
+    public class MainViewModel : INotifyPropertyChanged
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="MainViewModel"/> class.
         /// </summary>
         public MainViewModel()
         {
+            updateModel();
+        }
+
+        public void updateModel()
+        { 
             double[,] stagecurve = {{1.000,0.000},
                                     {0.957,0.358},
                                     {0.917,0.504},
@@ -242,6 +249,15 @@ namespace MidiApp
         /// Gets or sets the model.
         /// </summary>
         /// <value>The model.</value>
-        public Model3D Model { get; set; }
+
+        private Model3D model;
+        public Model3D Model { get => model; set { model = value; OnPropertyChanged(); } }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
     }
 }

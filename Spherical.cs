@@ -14,14 +14,16 @@ namespace MidiApp
         public static Point3D FromSpherical(double r, double tilt, double pan)
         {
             Point3D pt = new Point3D();
+
+            tilt -= 90;
             double snt = Math.Sin(tilt * Math.PI / 180);
             double cnt = Math.Cos(tilt * Math.PI / 180);
             double snp = Math.Sin(pan * Math.PI / 180);
             double cnp = Math.Cos(pan * Math.PI / 180);
 
-            pt.X = r * snt * cnp;
-            pt.Y = r * cnt;
-            pt.Z = -r * snt * snp;
+            pt.Y = -r * cnt * cnp;
+            pt.X = r * cnt * snp;
+            pt.Z = r * snt;
 
             return pt;
         }

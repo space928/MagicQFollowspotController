@@ -8,7 +8,7 @@
 
         xmlns:local="clr-namespace:MidiApp"
         mc:Ignorable="d"
-        Title="3D View" Height="542.82" Width="800" Activated="Window_Activated" MouseMove="Window_MouseMove" Topmost="True" KeyDown="ThreeD1_KeyDown">
+        Title="3D View" Height="542.82" Width="800" Activated="Window_Activated" Topmost="True" KeyDown="ThreeD1_KeyDown" Closed="ThreeD1_Closed">
     <Window.Background>
         <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.MenuTextColorKey}}"/>
     </Window.Background>
@@ -19,7 +19,7 @@
 
     <Grid>
             
-        <helix:HelixViewport3D x:Name="viewport3D" Grid.Row="1" MouseMove="HelixViewport3D_MouseMove">
+        <helix:HelixViewport3D x:Name="viewport3D" Grid.Row="1" MouseMove="HelixViewport3D_MouseMove" MouseDown="viewport3D_MouseDown" MouseUp="HelixViewport3D_MouseUp">
             <helix:DefaultLights/>
 
             <!--  The content of this visual is defined in MainViewModel.cs  -->

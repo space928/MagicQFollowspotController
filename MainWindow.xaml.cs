@@ -61,6 +61,8 @@ namespace MidiApp
         public static dynamic AppResources;
         public Thread m_ResourceLoader_Thread = null;
 
+        public ThreeD m_threeDWindow = null;
+
         bool logging = false;
 
         Dictionary<string, int> attributes = new Dictionary<string, int>();
@@ -127,6 +129,14 @@ namespace MidiApp
 
         }
 
+        public void saveAppResource()
+        {
+            string res = System.IO.File.ReadAllText(resourceFileName);
+            System.IO.File.WriteAllText(resourceFileName + ".bak", res);
+
+            System.IO.File.WriteAllText(resourceFileName, Newtonsoft.Json.JsonConvert.SerializeObject(AppResources));
+        }
+
         public dynamic getAppResource()
         {
             var res = System.IO.File.ReadAllText(resourceFileName);
@@ -146,6 +156,11 @@ namespace MidiApp
                     if (latestTime > time)
                     {
                         AppResources = getAppResource();
+                        context.Post(delegate (object dummy)
+                        {
+                            m_threeDWindow?.UpdateModel();
+                        }, null);
+
                         time = latestTime;
                     }
                     else
@@ -392,52 +407,61 @@ namespace MidiApp
                         }
                         else if (parts[1].Equals("fspot"))
                         {
-                            if (parts.Length>=2)
+                            if (parts.Length >= 2)
                             {
                                 if (parts[2] == "start")
                                 {
                                     string ids = msg.ToString();
+                                    int viewID = -1;
+
                                     if (!ids.EndsWith("/"))
                                     {
                                         ids = ids.Substring(ids.LastIndexOf('/') + 1);
+                                        string[] idspot = ids.Split(',');
 
-                                        foreach (string idspot in ids.Split(','))
+                                        int headId = Int32.Parse(idspot[0]);
+
+                                        foreach (Follow_Spot spot in m_spots)
                                         {
-                                            int headId = Int32.Parse(idspot);
-
-                                            foreach (Follow_Spot spot in m_spots)
-                                            {
-                                                if (spot.Head == headId)
-                                                {
-                                                    spot.IsActive = true;
-                                                    break;
-                                                }
-                                            }
+                                            spot.IsLeadSpot = spot.Head == headId;
+                                        }
+                                        if (idspot.Length > 1)
+                                        {
+                                            viewID = Int32.Parse(idspot[1]);
                                         }
                                     }
 
                                     context.Post(delegate (object dummy)
                                     {
-                                        ThreeD window1 = new ThreeD();
-                                        window1.grab();
+                                        if (m_threeDWindow == null)
+                                        {
+                                            m_threeDWindow = new ThreeD();
+                                            m_threeDWindow.grab();
+                                        }
+                                        else
+                                        {
+                                            m_threeDWindow.Show();
+                                        }
 
+                                        if (viewID > 0)
+                                        {
+                                            m_threeDWindow.setCameraView(viewID - 1);
+                                        }
                                     }, null);
-
-
 
                                 }
                                 else if (parts[2] == "stop")
                                 {
-                                    foreach( Follow_Spot spot in m_spots)
+                                    foreach (Follow_Spot spot in m_spots)
                                     {
-                                        spot.IsActive = false;
+                                        spot.IsLeadSpot = false;
                                     }
                                 }
                             }
-                           // m_spots[0].IsActive = true;
+                            // m_spots[0].IsActive = true;
                         }
 
-                            if (logging)
+                        if (logging)
                             context.Post(delegate (object dummy)
                             {
                                 if (parts.Length > 3)
@@ -586,7 +610,7 @@ namespace MidiApp
                     spot.Head = v.Head;
                     spot.Universe = v.Universe;
                     spot.Address = v.Address;
-                    spot.IsActive = false;
+                    spot.IsLeadSpot = false;
 
                     Point3D p;
                     switch ((int)v.Bar)
@@ -604,9 +628,8 @@ namespace MidiApp
 
                 ArtNetListner();
 
-                ThreeD window1 = new ThreeD();
-                window1.grab();
-
+                m_threeDWindow = new ThreeD();
+                m_threeDWindow.grab();
 
             }
             catch (Exception ex)
@@ -659,6 +682,11 @@ namespace MidiApp
                         {
                             spot.Pan = (float)Math.Round(((dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address]) / 65535.0 * 540.0 - 270.0, 1);
                             spot.Tilt = (float)Math.Round(((dmx.DmxData[spot.Address+1] * 256) + dmx.DmxData[spot.Address + 2]) / 65535.0 * 270.0 - 135.0, 1);
+                            if (spot.IsLeadSpot && m_threeDWindow != null)
+                            {
+
+                                m_threeDWindow.DMX_moveSpot(m_spots.IndexOf(spot));
+                            }
                         }
                     }
                 }
@@ -1107,7 +1135,7 @@ namespace MidiApp
 
         public float Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
         public float Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
-        public bool IsActive { get => isActive; set { isActive = value; OnPropertyChanged(); } }
+        public bool IsLeadSpot { get => isActive; set { isActive = value; OnPropertyChanged(); } }
 
         // Create the OnPropertyChanged method to raise the event
         // The calling member's name will be used as the parameter.

@@ -62,7 +62,7 @@
                     <DataGridTextColumn Binding="{Binding DMX_Base, Mode = OneWay }" ClipboardContentBinding="{x:Null}" Header="DMX Base"/>
                     <DataGridTextColumn Binding="{Binding Pan, Mode = OneWay}" ClipboardContentBinding="{x:Null}" Header="Pan"/>
                     <DataGridTextColumn Binding="{Binding Tilt, Mode = OneWay}" ClipboardContentBinding="{x:Null}" Header="Tilt"/>
-                    <DataGridCheckBoxColumn Binding="{Binding IsActive}" ClipboardContentBinding="{x:Null}" Header="Active"/>
+                    <DataGridCheckBoxColumn Binding="{Binding IsLeadSpot, Mode = OneWay}" ClipboardContentBinding="{x:Null}" Header="Lead Spot"/>
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>
