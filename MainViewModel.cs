@@ -31,6 +31,9 @@ namespace MidiApp
             updateModel();
         }
 
+        private GeometryModel3D m_Lights;
+        private GeometryModel3D m_Bars;
+
         public void updateModel()
         { 
             double[,] stagecurve = {{1.000,0.000},
@@ -209,28 +212,42 @@ namespace MidiApp
 
             mb.AddTriangleFan(points3D, normals);
 
+            modelGroup.Children.Add(new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = blueMaterial, BackMaterial = null });
+
+            mb = new MeshBuilder(true);
             mb.AddBox(new Point3D(0, BarAudienceOffset, BarAudienceHeight + 0.1), Width * 0.7, .1, .1);
             mb.AddBox(new Point3D(0, 0, Bar0Height+0.1), Width*0.7, .1, .1);
             mb.AddBox(new Point3D(0, Bar1Offset, Bar1Height + 0.1), Width * 0.9, .1, .1);
             mb.AddBox(new Point3D(0, Bar2Offset, Bar2Height + 0.1), Width * 0.9, .1, .1);
-            
 
-            modelGroup.Children.Add(new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = blueMaterial, BackMaterial = null });
+            m_Bars = new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = blueMaterial, BackMaterial = null };
+            modelGroup.Children.Add(m_Bars);
 
             mb = new MeshBuilder(true);
             foreach (Follow_Spot spot in MainWindow.m_spots)
             {
-
                 mb.AddBox(spot.Location, 0.2,0.2,0.2);
             }
 
-            modelGroup.Children.Add(new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = redMaterial, BackMaterial = null });
+            m_Lights = new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = redMaterial, BackMaterial = null };
+            modelGroup.Children.Add(m_Lights);
 
 
             // Set the property, which will be bound to the Content property of the ModelVisual3D (see MainWindow.xaml)
             Model = modelGroup;
         }
 
+        public void hideLights()
+        {
+            ((Model3DGroup)Model).Children.Remove(m_Lights);
+            ((Model3DGroup)Model).Children.Remove(m_Bars);
+        }
+
+        public void showLights()
+        {
+            ((Model3DGroup)Model).Children.Add(m_Lights);
+            ((Model3DGroup)Model).Children.Add(m_Bars);
+        }
 
         private Transform3D makeTransform(double X, double Y, double Z, double rotX, double rotY, double rotZ)
         {

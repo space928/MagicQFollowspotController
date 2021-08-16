@@ -114,10 +114,11 @@ namespace MidiApp
   //          Focus();
         }
 
-        private Point3D? MoveSpot(int spot_number, Point p)
+        private double MoveSpot(int spot_number, Point p)
         {
             viewport3D.Children.Remove(m_spotSphere);
             viewport3D.Children.Remove(m_beam);
+            ((MainViewModel)(DataContext)).hideLights();
 
             var pt = viewport3D.FindNearestPoint(p);
             if (pt != null)
@@ -131,33 +132,42 @@ namespace MidiApp
                 var mb = new MeshBuilder(true);
                 mb.AddCylinder(point, MainWindow.m_spots[spot_number].Location, .1, 8);
 
+                double movement = (point - MainWindow.m_spots[spot_number].Target).Length;
+
+                MainWindow.m_spots[spot_number].Target = point;
+
                 ((MeshGeometryVisual3D)m_beam).MeshGeometry = mb.ToMesh();
 
+                ((MainViewModel)(DataContext)).showLights();
                 viewport3D.Children.Add(m_beam);
                 viewport3D.Children.Add(m_spotSphere);
-                return point;
+                return movement;
             }
 
-            return null;
+            ((MainViewModel)(DataContext)).showLights();
+            return 0.0;
         }
 
-        public void DMX_moveSpot(int spot_number)
+        public double DMX_moveSpot(int spot_number)
         {
-            if (!m_mousedown)
+            if (!m_mousedown && (spot_number<0))
             {
                 var p = viewport3D.Camera.Position;
                 var v = viewport3D.Camera.LookDirection;
 
-                viewport3D.Camera.Position = MainWindow.m_spots[spot_number].Location;
+                viewport3D.Camera.Position = MainWindow.m_spots[0].Location;
 
-                var nv = Spherical.FromSpherical(1, MainWindow.m_spots[spot_number].Tilt, MainWindow.m_spots[spot_number].Pan);
+                var nv = Spherical.FromSpherical(1, MainWindow.m_spots[0].Tilt, MainWindow.m_spots[0].Pan);
                 viewport3D.Camera.LookDirection = (Vector3D)nv;
 
-                MoveSpot(spot_number, new Point(viewport3D.ActualWidth / 2, viewport3D.ActualHeight / 2));
+                double moved = MoveSpot(0, new Point(viewport3D.ActualWidth / 2, viewport3D.ActualHeight / 2));
 
                 viewport3D.Camera.Position = p;
                 viewport3D.Camera.LookDirection = v;
+                return moved;
             }
+
+            return 0;
         }
 
 
@@ -222,8 +232,6 @@ namespace MidiApp
                         MainWindow.AppResources.Remove("CameraPositions");
 
                         MainWindow.AppResources.Add("CameraPositions", (JToken)ds);
-                 //       pos.Add(CameraSaveStates);
-
                         win.saveAppResource();
                     }
 
@@ -249,29 +257,19 @@ namespace MidiApp
                 camera.UpDirection = CameraSaveStates[view].UpDirection;
             }
         }
-        private int leadSpot()
-        {
-            int i = 0;
-            for(i=0; i< MainWindow.m_spots.Count; i++)
-            {
-                if (MainWindow.m_spots[i].IsLeadSpot)
-                {
-                    return i;
-                }
-            }
-
-            return 0;
-        }
         private void HelixViewport3D_MouseMove(object sender, MouseEventArgs e)
         {
-            if (e.LeftButton == MouseButtonState.Pressed)
+            if (e.LeftButton == MouseButtonState.Pressed && (((MainWindow)App.Current.MainWindow).leadSpot() >= 0))
             {
-                Point3D? p = MoveSpot(leadSpot(), e.GetPosition(viewport3D)); ;
+                double moved = MoveSpot(((MainWindow)App.Current.MainWindow).leadSpot(), e.GetPosition(viewport3D));
+                Point3D p = MainWindow.m_spots[((MainWindow)App.Current.MainWindow).leadSpot()].Target;
 
-                if (p != null)
+                for (int i = 0; i < MainWindow.m_spots.Count; i++)
                 {
-                    ((MainWindow)App.Current.MainWindow).PointSpot((Point3D)p);
+                    MainWindow.m_spots[i].Target = p;
                 }
+
+                ((MainWindow)App.Current.MainWindow).PointSpots();
             }
         }
 

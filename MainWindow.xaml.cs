@@ -37,8 +37,8 @@ namespace MidiApp
     {
 
 
-        static string MIDI_DEVICE_NAME = "LoopBe";
-        //static string MIDI_DEVICE_NAME = "X-TOUCH";
+        //static string MIDI_DEVICE_NAME = "LoopBe";
+        static string MIDI_DEVICE_NAME = "X-TOUCH";
         public OscSender sender;
         public OscReceiver receiver;
 
@@ -49,6 +49,7 @@ namespace MidiApp
 
         public Thread m_Thread = null;
         public Thread activity_Thread = null;
+        public Thread ArtNetactivity_Thread = null;
         public ArtNetSocket m_socket = null;
         public ArtNetSocket m_TXsocket = null;
         public static List<Follow_Spot> m_spots = new List<Follow_Spot>();
@@ -57,13 +58,11 @@ namespace MidiApp
         public String MQhostname = "not connected";
         public String MQshowfile = "not connected";
 
-        public string resourceFileName = @"..\..\resources.json";
+        public string resourceFileName = @"resources.json";
         public static dynamic AppResources;
         public Thread m_ResourceLoader_Thread = null;
 
         public ThreeD m_threeDWindow = null;
-
-        bool logging = false;
 
         Dictionary<string, int> attributes = new Dictionary<string, int>();
 
@@ -90,8 +89,6 @@ namespace MidiApp
 
         SynchronizationContext context;
 
-        //        IPAddress address = null;
-
         bool[] buttons;
         float[] faders;
         bool[] encoderState;
@@ -106,14 +103,19 @@ namespace MidiApp
             faders = new float[256];
             encoderState = new bool[256];
 
-            String strHostName = Dns.GetHostName();
-            IPHostEntry iphostentry = Dns.GetHostEntry(strHostName);
+            //String strHostName = Dns.GetHostName();
+            //IPHostEntry iphostentry = Dns.GetHostEntry(strHostName);
 
-            foreach (IPAddress ipaddress in iphostentry.AddressList)
-            {
-                if (ipaddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                    ipInput.Items.Add(ipaddress.ToString());
-            }
+            //foreach (IPAddress ipaddress in iphostentry.AddressList)
+            //{
+            //    if (ipaddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            //        ipInputMQ.Items.Add(ipaddress.ToString());
+
+            //    if (ipaddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            //        ipInputTX.Items.Add(ipaddress.ToString());
+
+            //}
+
             context = SynchronizationContext.Current;
 
             for (int i = 0; i < attributeNames.Length; i++)
@@ -121,13 +123,35 @@ namespace MidiApp
                 attributes.Add(attributeNames[i], i);
             }
 
-
             AppResources = getAppResource();
             m_ResourceLoader_Thread = new Thread(new ThreadStart(resourceLoaderLoop));
             m_ResourceLoader_Thread.IsBackground = true;
             m_ResourceLoader_Thread.Start();
 
+            try
+            {
+                MQ_IPAddress = IPAddress.Parse((string)AppResources.Network.MAgicQIP);
+                ARTNET_RXIPAddress = IPAddress.Parse((string)AppResources.Network.ArtNet.RXIP);
+                ARTNET_RXSubNetMask = IPAddress.Parse((string)AppResources.Network.ArtNet.RXSubNetMask);
+                ARTNET_TXIPAddress = IPAddress.Parse((string)AppResources.Network.ArtNet.TXIP);
+                ARTNET_TXSubNetMask = IPAddress.Parse((string)AppResources.Network.ArtNet.TXSubNetMask);
+                ARTNET_TXUseBroadcast = (bool)AppResources.Network.ArtNet.Broadcast;
+                ARTNET_TXUniverse = (int)AppResources.Network.ArtNet.Universe;
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("Cannot parse resource file\n" + e.Message, "Resource File Problem", MessageBoxButton.OK, MessageBoxImage.Stop);
+                Close();
+            }
         }
+
+        IPAddress MQ_IPAddress = null;
+        IPAddress ARTNET_RXIPAddress = null;
+        IPAddress ARTNET_RXSubNetMask = null;
+        IPAddress ARTNET_TXIPAddress = null;
+        IPAddress ARTNET_TXSubNetMask = null;
+        bool ARTNET_TXUseBroadcast = true;
+        int ARTNET_TXUniverse = 0;
 
         public void saveAppResource()
         {
@@ -139,14 +163,22 @@ namespace MidiApp
 
         public dynamic getAppResource()
         {
-            var res = System.IO.File.ReadAllText(resourceFileName);
-
-            return Newtonsoft.Json.JsonConvert.DeserializeObject(res);
+            try
+            {
+                var res = System.IO.File.ReadAllText(resourceFileName);
+                return Newtonsoft.Json.JsonConvert.DeserializeObject(res);
+            }
+            catch (System.IO.FileNotFoundException)
+            {
+                MessageBox.Show("Cannot find resource file\n"+ resourceFileName, "File Not Found", MessageBoxButton.OK, MessageBoxImage.Stop);
+                Close();
+                return null;
+            }
         }
         public void resourceLoaderLoop()
         {
             DateTime time = System.IO.File.GetLastWriteTime(resourceFileName);
-                
+
             while (true)
             {
                 try
@@ -254,7 +286,8 @@ namespace MidiApp
         public void activity(int type)
         {
             activityTimer.Restart();
-            if (context != null) {
+            if (context != null)
+            {
                 context.Post(delegate (object dummy)
                 {
                     ActivityLED.Fill = GreenFill;
@@ -262,6 +295,45 @@ namespace MidiApp
             }
         }
 
+        Stopwatch ArtNetactivityTimer = Stopwatch.StartNew();
+
+        void ArtNetActivityMonitor()
+        {
+
+            while (true)
+            {
+                try
+                {
+                    Thread.Sleep(100);
+                    if (context != null)
+                    {
+                        context.Post(delegate (object dummy)
+                        {
+                            if (ArtNetactivityTimer.ElapsedMilliseconds > 200)
+                            {
+                                ArtNetActivityLED.Fill = WhiteFill;
+                            }
+                        }, null);
+                    }
+                }
+                catch (ThreadInterruptedException)
+                {
+
+                }
+
+            }
+        }
+
+        public void ArtNetactivity(int type)
+        {
+            ArtNetactivityTimer.Restart();
+            if (context != null) {
+                context.Post(delegate (object dummy)
+                {
+                    ArtNetActivityLED.Fill = GreenFill;
+                }, null);
+            }
+        }
 
         Stopwatch connectionTimer = Stopwatch.StartNew();
         void mqConnection_Monitor()
@@ -458,35 +530,9 @@ namespace MidiApp
                                     }
                                 }
                             }
-                            // m_spots[0].IsActive = true;
+
                         }
 
-                        if (logging)
-                            context.Post(delegate (object dummy)
-                            {
-                                if (parts.Length > 3)
-                                {
-                                    channelListBox.Items.Add(
-                                        parts[1] + '\t' + parts[2] + '\t' +
-                                        parts[3] + '\t' + msg[0].ToString());
-                                }
-                                else
-                                if (parts.Length > 2)
-                                {
-                                    channelListBox.Items.Add(
-                                        parts[1] + '\t' + parts[2] + '\t' +
-                                        '\t' + msg[0].ToString());
-                                }
-                                else
-                                {
-                                    channelListBox.Items.Add(
-                                        parts[1] + '\t' + '\t' + '\t' +
-                                        '\t' + msg.ToString());
-                                }
-
-                                channelListBox.SelectedIndex = channelListBox.Items.Count - 1;
-
-                            }, null);
                     }
                 }
                 catch (System.Exception)
@@ -542,6 +588,13 @@ namespace MidiApp
                     activity_Thread.Start();
                 }
 
+                if (ArtNetactivity_Thread == null)
+                {
+                    ArtNetactivity_Thread = new Thread(new ThreadStart(ArtNetActivityMonitor));
+                    ArtNetactivity_Thread.IsBackground = true;
+                    ArtNetactivity_Thread.Start();
+                }
+
                 if (mqConnection_Thread == null)
                 {
                     mqConnection_Thread = new Thread(new ThreadStart(mqConnection_Monitor));
@@ -555,7 +608,8 @@ namespace MidiApp
                 inDevice.SysRealtimeMessageReceived += HandleSysRealtimeMessageReceived;
                 inDevice.Error += new EventHandler<ErrorEventArgs>(inDevice_Error);
 
-                //inDevice.StartRecording();
+                if (!MIDI_DEVICE_NAME.Contains("Loop"))
+                    inDevice.StartRecording();
 
                 ChannelMessageBuilder builder = new ChannelMessageBuilder();
 
@@ -599,12 +653,21 @@ namespace MidiApp
 
                 selectedPlayback = 9;
 
-                ipInput_SelectionChanged(null, null);
+                builder.Command = ChannelCommand.NoteOn;
+                builder.Data1 = 38;
+                builder.Data2 = 2;
+                builder.Build();
+                outDevice.Send(builder.Result);
+
+                ipInputMQ.Content = MQ_IPAddress;
+                ipInputTX.Content = ARTNET_TXIPAddress;
+
+                setupMQListener();
                 m_Thread = new Thread(new ThreadStart(ListenLoop));
                 m_Thread.IsBackground = true;
                 m_Thread.Start();
 
-                foreach(dynamic v  in AppResources.Lights)
+                foreach (dynamic v in AppResources.Lights)
                 {
                     Follow_Spot spot = new Follow_Spot();
                     spot.Head = v.Head;
@@ -666,52 +729,81 @@ namespace MidiApp
             }
         }
 
+        public int leadSpot()
+        {
+            int i = 0;
+            for (i = 0; i < MainWindow.m_spots.Count; i++)
+            {
+                if (MainWindow.m_spots[i].IsLeadSpot)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
             //Console.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
-
-            context.Post(delegate (object dummy)
+            if (leadSpot() < 0)
             {
-                if (e.Packet.OpCode == Haukcode.ArtNet.ArtNetOpCodes.Dmx)
+                ArtNetactivity(1);
+
+                context.Post(delegate (object dummy)
                 {
-                    ArtNetDmxPacket dmx = (ArtNetDmxPacket)e.Packet;
-
-                    foreach (Follow_Spot spot in m_spots)
+                    if (e.Packet.OpCode == Haukcode.ArtNet.ArtNetOpCodes.Dmx)
                     {
-                        if (dmx.Universe == spot.Universe-1)
-                        {
-                            spot.Pan = (float)Math.Round(((dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address]) / 65535.0 * 540.0 - 270.0, 1);
-                            spot.Tilt = (float)Math.Round(((dmx.DmxData[spot.Address+1] * 256) + dmx.DmxData[spot.Address + 2]) / 65535.0 * 270.0 - 135.0, 1);
-                            if (spot.IsLeadSpot && m_threeDWindow != null)
-                            {
+                        ArtNetDmxPacket dmx = (ArtNetDmxPacket)e.Packet;
 
-                                m_threeDWindow.DMX_moveSpot(m_spots.IndexOf(spot));
+                        foreach (Follow_Spot spot in m_spots)
+                        {
+                            if (dmx.Universe == spot.Universe - 1)
+                            {
+                                spot.Pan = Math.Round(((dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address]) / 65535.0 * 540.0 - 270.0, 3);
+                                spot.Tilt = Math.Round(((dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2]) / 65535.0 * 270.0 - 135.0, 3);
                             }
                         }
-                    }
-                }
-            }, null);
 
+                        //if (dmx.Universe == m_spots[0].Universe - 1)
+                        //{
+                        //                        Follow_Spot spot = m_spots[0];
+
+                        //                        int p = (dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address];
+                        //                        int t = (dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2];
+
+                        //Console.WriteLine("P: {0}, T:{1}", p, t);
+                        //updateDMX(dmx.DmxData);
+                        //}
+
+                        if (m_threeDWindow != null)
+                        {
+                            m_threeDWindow.DMX_moveSpot(leadSpot());
+                        }
+
+                    }
+                }, null);
+            }
 
         }
         void ArtNetListner()
         {
+
             m_socket = new ArtNetSocket();
             m_TXsocket = new ArtNetSocket();
 
             m_socket.NewPacket += ArtNet_NewPacket;
 
-            var addresses = GetAddressesFromInterfaceType();
-            var addr = addresses.ToArray()[2];
+//            var addresses = GetAddressesFromInterfaceType();
+//            var addr = addresses.ToArray()[2];
 
-            m_socket.Open(addr.Address, addr.NetMask);
+            m_socket.Open(ARTNET_RXIPAddress, ARTNET_RXSubNetMask);
 
-            addr = addresses.ToArray()[0];
-            m_TXsocket.Open(addr.Address, addr.NetMask);
-
+//            addr = addresses.ToArray()[0];
+            m_TXsocket.Open(ARTNET_TXIPAddress, ARTNET_TXSubNetMask);
+//            m_TXsocket.Open(addr.Address, addr.NetMask);
+            m_TXsocket.EnableBroadcast = ARTNET_TXUseBroadcast;
         }
-
-
 
         private void Window_Closed(object sender, EventArgs e)
         {
@@ -732,34 +824,24 @@ namespace MidiApp
                 receiver = null;
             }
 
-            if (m_Thread!=null)
+            if (m_Thread != null)
                 m_Thread.Interrupt();
             Application.Current.Shutdown();
 
         }
 
-        private void startButton_Click(object sender, RoutedEventArgs e)
-        {
-            channelListBox.Items.Clear();
-            AdonisUI.ResourceLocator.SetColorScheme(Application.Current.Resources, AdonisUI.ResourceLocator.DarkColorScheme);
-
-            logging = true;
-
-            try
-            {
-                inDevice.StartRecording();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "Error!", MessageBoxButton.OK, MessageBoxImage.Stop);
-            }
-        }
-
         private void stopButton_Click(object sender, RoutedEventArgs e)
         {
-            logging = false;
+            if (m_threeDWindow == null)
+            {
+                m_threeDWindow = new ThreeD();
+                m_threeDWindow.grab();
+            }
+            else
+            {
+                m_threeDWindow.Show();
+            }
         }
-
 
         private void inDevice_Error(object source, ErrorEventArgs e)
         {
@@ -771,9 +853,9 @@ namespace MidiApp
 
             activity(0);
 
-            if ((e.Message.Command== ChannelCommand.Controller) && (e.Message.Data1 <10))
+            if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 < 10))
             {
-                sender.Send(new OscMessage("/pb/"+ e.Message.Data1, e.Message.Data2/127.0f));
+                sender.Send(new OscMessage("/pb/" + e.Message.Data1, e.Message.Data2 / 127.0f));
                 faders[e.Message.Data1] = e.Message.Data2 / 127.0f;
             }
             else if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 >= 10))
@@ -785,7 +867,7 @@ namespace MidiApp
                 {
                     attribute = selected_Attribute;
                 }
-                
+
                 if (e.Message.Data1 == 24)
                 {
                     delta = (e.Message.Data2 < 64) ? 1 : -1;
@@ -795,14 +877,14 @@ namespace MidiApp
                     if (selected_Attribute < 0)
                         selected_Attribute += attributeNames.Length;
 
-                    sender.Send(new OscMessage("/pb/10/" + (selected_Attribute+1), 1.00f));
+                    sender.Send(new OscMessage("/pb/10/" + (selected_Attribute + 1), 1.00f));
 
                     context.Post(delegate (object dummy)
                     {
                         attrName.Text = attributeNames[selected_Attribute];
                     }, null);
 
-                } 
+                }
                 else if (e.Message.Data2 < 64)
                 {
                     if (encoderState[e.Message.Data1 - 10])
@@ -810,7 +892,7 @@ namespace MidiApp
                         delta *= 2;
                     }
 
-                    sender.Send(new OscMessage("/rpc", "\\07,"+ (attribute) + "," + (delta) + "H"));
+                    sender.Send(new OscMessage("/rpc", "\\07," + (attribute) + "," + (delta) + "H"));
                     //Console.WriteLine("Controller: " + "/rpc " + "\\07, " + (attribute) + ", " + (delta) + "," + ((encoderState[e.Message.Data1 - 10]) ? "1" : "0") + "H");
                 }
                 else
@@ -847,28 +929,28 @@ namespace MidiApp
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 16) && (e.Message.Data1 <= 39) && (e.Message.Data2 == 127))
             {
-            ChannelMessageBuilder builder = new ChannelMessageBuilder();
-            buttons[e.Message.Data1-16] = !buttons[e.Message.Data1 - 16];
+                ChannelMessageBuilder builder = new ChannelMessageBuilder();
+                buttons[e.Message.Data1 - 16] = !buttons[e.Message.Data1 - 16];
 
-            sender.Send(new OscMessage("/exec/" + (e.Message.Data1 -15), buttons[e.Message.Data1 - 16] ? 1 : 0));
-            //  Console.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
-            } 
+                sender.Send(new OscMessage("/exec/" + (e.Message.Data1 - 15), buttons[e.Message.Data1 - 16] ? 1 : 0));
+                //  Console.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
+            }
             else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 16) && (e.Message.Data1 <= 39) && (e.Message.Data2 == 0))
             {
                 ChannelMessageBuilder builder = new ChannelMessageBuilder();
 
                 builder.Command = ChannelCommand.NoteOn;
                 builder.Data1 = (e.Message.Data1);
-                builder.Data2 = buttons[e.Message.Data1 - 16] ?1:0;
+                builder.Data2 = buttons[e.Message.Data1 - 16] ? 1 : 0;
                 builder.Build();
                 outDevice.Send(builder.Result);
-               // Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
-//                sender.Send(new OscMessage("/feedback/exec"));
-            } 
+                // Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                //                sender.Send(new OscMessage("/feedback/exec"));
+            }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 == 127))
             {
                 ChannelMessageBuilder builder = new ChannelMessageBuilder();
-                for (int j = 0; j<9; j++)
+                for (int j = 0; j < 9; j++)
                 {
                     buttons[j + 40 - 16] = false;
                 }
@@ -884,7 +966,7 @@ namespace MidiApp
                     outDevice.Send(builder.Result);
                 }
                 //  Console.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
-            } 
+            }
             else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 == 0))
             {
                 ChannelMessageBuilder builder = new ChannelMessageBuilder();
@@ -898,8 +980,7 @@ namespace MidiApp
                     outDevice.Send(builder.Result);
                 }
                 //Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
-                //                sender.Send(new OscMessage("/feedback/exec"));
-            } 
+            }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 49) && (e.Message.Data1 <= 54) && (e.Message.Data2 == 127))
             {
                 if (selectedPlayback > 0)
@@ -913,9 +994,10 @@ namespace MidiApp
                             sender.Send(new OscMessage("/rpc", selectedPlayback + "F"));
                             break;
                         case 51:
+                            sender.Send(new OscMessage("/rpc", "\\31H"));
                             break;
                         case 52:
-                            sender.Send(new OscMessage("/rpc", selectedPlayback + "F"));
+                            sender.Send(new OscMessage("/rpc", "\\30H"));
                             break;
                         case 53:
                             sender.Send(new OscMessage("/rpc", selectedPlayback + "S"));
@@ -929,23 +1011,26 @@ namespace MidiApp
 
                 //Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
                 //                sender.Send(new OscMessage("/feedback/exec"));
+
+            }
+            else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 == 54))
+            {
+                ChannelMessageBuilder b2 = new ChannelMessageBuilder();
+
+                b2.Command = ChannelCommand.NoteOn;
+                b2.MidiChannel = 1;
+
+                b2.Data1 = 38;
+                b2.Data2 = 2;
+                b2.Build();
+                outDevice.Send(b2.Result);
+
             }
 
 
-            if (logging)
-                context.Post(delegate (object dummy)
-                {
-                    channelListBox.Items.Add(
-                        e.Message.Command.ToString() + '\t' + '\t' +
-                        e.Message.MidiChannel.ToString() + '\t' +
-                        e.Message.Data1.ToString() + '\t' +
-                        e.Message.Data2.ToString());
-
-                    channelListBox.SelectedIndex = channelListBox.Items.Count - 1;
-                }, null);
         }
 
-        
+
         private void HandleSysExMessageReceived(object source, SysExMessageEventArgs e)
         {
             context.Post(delegate (object dummy)
@@ -957,22 +1042,12 @@ namespace MidiApp
                     result += string.Format("{0:X2} ", b);
                 }
 
-//                sysExRichTextBox.AppendText(result);
+                //                sysExRichTextBox.AppendText(result);
             }, null);
         }
 
         private void HandleSysCommonMessageReceived(object source, SysCommonMessageEventArgs e)
         {
-            if (logging)
-                context.Post(delegate (object dummy)
-                {
-                    channelListBox.Items.Add(
-                        e.Message.SysCommonType.ToString() + '\t' + '\t' +
-                        e.Message.Data1.ToString() + '\t' +
-                        e.Message.Data2.ToString());
-
-                    channelListBox.SelectedIndex = channelListBox.Items.Count - 1;
-                }, null);
         }
 
 
@@ -996,60 +1071,35 @@ namespace MidiApp
                 FDiffTimeStamp = 60000.0 / (timestamp - FLastTimestamp);
                 FLastTimestamp = timestamp;
             }
-
-            if (logging)
-                context.Post(delegate (object dummy)
-                {
-                    channelListBox.Items.Add(
-                        e.Message.SysRealtimeType.ToString());
-
-                    channelListBox.Items.Add("BPM from stopwatch: " + FDiff.ToString("F4"));
-                    channelListBox.Items.Add("BPM from driver timestamp: " + FDiffTimeStamp.ToString("F4"));
-
-                    channelListBox.SelectedIndex = channelListBox.Items.Count - 1;
-                }, null);
         }
 
-        IPAddress MQ_IPAddress = null;
-        private void ipInput_SelectionChanged(object m_sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void setupMQListener()
         {
-            try
+            int port = 8000;
+            if (receiver != null)
             {
-                if (ipInput.SelectedItem != null)
-                {
-                    MQ_IPAddress = IPAddress.Parse(ipInput.SelectedItem.ToString());
-                    ipInput.Background = this.Background;
-
-                    int port = 8000;
-                    if (receiver != null)
-                    {
-                        receiver.Dispose();
-                    }
-                    receiver = new OscReceiver(9000);
-                    receiver.Connect();
-
-                    if (m_Thread != null)
-                    {
-                        m_Thread.Abort();
-                        m_Thread = new Thread(new ThreadStart(ListenLoop));
-                        m_Thread.IsBackground = true;
-                        m_Thread.Start();
-                    }
-
-                    if (sender != null)
-                    {
-                        sender.Dispose();
-                    }
-
-                    sender = new OscSender(MQ_IPAddress, port);
-                    sender.Connect();
-
-                    sender.Send(new OscMessage("/feedback/pb+exec"));
-                }
-            } catch (FormatException)
-            {
-                ipInput.Background = new SolidColorBrush(Colors.Red);
+                receiver.Dispose();
             }
+            receiver = new OscReceiver(9000);
+            receiver.Connect();
+
+            if (m_Thread != null)
+            {
+                m_Thread.Abort();
+                m_Thread = new Thread(new ThreadStart(ListenLoop));
+                m_Thread.IsBackground = true;
+                m_Thread.Start();
+            }
+
+            if (sender != null)
+            {
+                sender.Dispose();
+            }
+
+            sender = new OscSender(MQ_IPAddress, port);
+            sender.Connect();
+
+            sender.Send(new OscMessage("/feedback/pb+exec"));
         }
 
         private void AdonisWindow_PreviewLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
@@ -1074,25 +1124,44 @@ namespace MidiApp
         }
 
         private byte ArtNetSequence = 0;
-        public void PointSpot(Point3D point)
+        public void PointSpots()
         {
-            byte[] packet = new byte[512];
-
             foreach (Follow_Spot spot in m_spots)
-//                Follow_Spot spot = m_spots[0];
             {
-                Vector3D p = (point- spot.Location);
+                Vector3D p = (spot.Target - spot.Location);
                 Point3D direction = Spherical.ToSpherical(-p.Y, p.X, p.Z);
                 direction.Y += 90;
 
                 direction = Spherical.MinSphericalMove(new Point3D(1, spot.Tilt, spot.Pan), direction);
-                spot.Tilt = (float)direction.Y;
-                spot.Pan = (float)direction.Z;
+                spot.Tilt = direction.Y;
+                spot.Pan = direction.Z;
+            }
 
-//                Console.WriteLine("DeltaX: {0:N2}, DeltaY: {1:N2}, Pan: {2:N2}, Tilt: {3:N2}", p.X, p.Y, spot.Pan, spot.Tilt);
+            updateDMX();
+        }
 
-                int PanDMX = (int)(((spot.Pan + 270.0) / 540.0) * 65535.0);
-                int TiltDMX = (int)(((spot.Tilt + 135.0) / 270.0) * 65535.0);
+        public void updateDMX(byte[] packet)
+        {
+            ArtNetSequence++;
+
+            m_TXsocket.Send(new ArtNetDmxPacket
+            {
+                Sequence = ArtNetSequence,
+                Physical = 1,
+                Universe = (short)ARTNET_TXUniverse,
+                DmxData = packet
+            });
+            ArtNetactivity(2);
+        }
+
+        public void updateDMX()
+        {
+            byte[] packet = new byte[512];
+
+            foreach (Follow_Spot spot in m_spots)
+            {
+                int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0),0);
+                int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0),0);
 
                 packet[spot.Address - 1] = (byte)(PanDMX / 256);
                 packet[spot.Address] = (byte)(PanDMX % 256);
@@ -1100,26 +1169,16 @@ namespace MidiApp
                 packet[spot.Address + 2] = (byte)(TiltDMX % 256);
             }
 
-            //            sender.Send(new OscMessage("/rpc", "\\06," + (4) + "," + (pan) + ",0H", "\\06," + (4) + "," + (pan) + ",0H" + "\\06," + (5) + "," + (tilt) + ",0H"));
-            ArtNetSequence++;
-
-            m_TXsocket.Send(new ArtNetDmxPacket
-            {
-                Sequence = ArtNetSequence,
-                Physical =1,
-                Universe = 60,
-                DmxData = packet
-            }) ;
-
+            updateDMX(packet);
         }
     }
 
     public class Follow_Spot : INotifyPropertyChanged
     {
-        private float pan;
-        private float tilt;
+        private double pan;
+        private double tilt;
         private bool isActive;
-
+        private Point3D target;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -1133,8 +1192,9 @@ namespace MidiApp
             get => Universe.ToString() + "-" + Address.ToString();
         }
 
-        public float Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
-        public float Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
+        public Point3D Target { get => target; set { target = value; OnPropertyChanged(); } }
+        public double Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
+        public double Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
         public bool IsLeadSpot { get => isActive; set { isActive = value; OnPropertyChanged(); } }
 
         // Create the OnPropertyChanged method to raise the event

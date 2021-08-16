@@ -13,9 +13,9 @@
   "BarAudienceHeight": 7.5,
   "BarAudienceOffset": -4.7,
   "Bar1Height": 7.5,
-  "Bar1Offset": 5.7,
+  "Bar1Offset": 2.7,
   "Bar2Height": 7.5,
-  "Bar2Offset": 7,
+  "Bar2Offset": 3.7,
   "Lights": [
     {
       "Head": 301,
@@ -32,6 +32,20 @@
       "XOffset": 2
     },
     {
+      "Head": 303,
+      "Universe": 1,
+      "Address": 168,
+      "Bar": 2,
+      "XOffset": -1
+    },
+    {
+      "Head": 304,
+      "Universe": 1,
+      "Address": 192,
+      "Bar": 2,
+      "XOffset": 1
+    },
+    {
       "Head": 305,
       "Universe": 1,
       "Address": 415,
@@ -46,6 +60,17 @@
       "XOffset": -1.5
     }
   ],
+  "Network": {
+    "MAgicQIP": "192.168.56.1",
+    "ArtNet": {
+      "RXIP": "192.168.56.1",
+      "RXSubNetMask": "255.255.255.0",
+      "TXIP": "172.29.64.1",
+      "TXSubNetMask": "255.255.240.0",
+      "Broadcast": true,
+      "Universe": 60
+    }
+  },
   "CameraPositions": [
     {
       "Location": "-0.0171990050905657,-37.4039793643557,33.2689387306434",
@@ -65,7 +90,12 @@
       "UpDirection": "-0.161426066607701,0.0639946452964028,0.984807753012211",
       "FOV": 45.0
     },
-    null,
+    {
+      "Location": "17.9477022658366,-2.12258296044177,44.2466375759535",
+      "Direction": "-17.9443183661897,0.783602455204375,-43.3305913602147",
+      "UpDirection": "-0.922899704876828,0.0403016966089667,0.38292546009466",
+      "FOV": 45.0
+    },
     null
   ]
 }

@@ -8,7 +8,7 @@
 
         xmlns:local="clr-namespace:MidiApp"
         mc:Ignorable="d"
-        Title="3D View" Height="542.82" Width="800" Activated="Window_Activated" Topmost="True" KeyDown="ThreeD1_KeyDown" Closed="ThreeD1_Closed">
+        Title="3D Followspot Tracker" Height="542" Width="800" Activated="Window_Activated" Topmost="True" KeyDown="ThreeD1_KeyDown" Closed="ThreeD1_Closed">
     <Window.Background>
         <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.MenuTextColorKey}}"/>
     </Window.Background>
