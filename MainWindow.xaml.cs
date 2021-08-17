@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Timers;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Documents;
@@ -37,8 +38,8 @@ namespace MidiApp
     {
 
 
-        //static string MIDI_DEVICE_NAME = "LoopBe";
-        static string MIDI_DEVICE_NAME = "X-TOUCH";
+        static string MIDI_DEVICE_NAME = "LoopBe";
+        //static string MIDI_DEVICE_NAME = "X-TOUCH";
         public OscSender sender;
         public OscReceiver receiver;
 
@@ -1126,20 +1127,74 @@ namespace MidiApp
         private byte ArtNetSequence = 0;
         public void PointSpots()
         {
-            foreach (Follow_Spot spot in m_spots)
-            {
-                Vector3D p = (spot.Target - spot.Location);
-                Point3D direction = Spherical.ToSpherical(-p.Y, p.X, p.Z);
-                direction.Y += 90;
+            //foreach (Follow_Spot spot in m_spots)
+            //{
+            //    Vector3D p = (spot.Target - spot.Location);
+            //    Point3D direction = Spherical.ToSpherical(-p.Y, p.X, p.Z);
+            //    direction.Y += 90;
 
-                direction = Spherical.MinSphericalMove(new Point3D(1, spot.Tilt, spot.Pan), direction);
-                spot.Tilt = direction.Y;
-                spot.Pan = direction.Z;
-            }
+            //    direction = Spherical.MinSphericalMove(new Point3D(1, spot.Tilt, spot.Pan), direction);
+            //    spot.Tilt = direction.Y;
+            //    spot.Pan = direction.Z;
+            //}
 
-            updateDMX();
+            //updateDMX();
+            Smoother(null, null);
         }
 
+        System.Timers.Timer timer = null;
+        readonly object timerLock = new object();
+
+        void Smoother(object sender, ElapsedEventArgs e)
+        {
+            bool isMoving = false;
+            lock (timerLock)
+            {
+                if (timer == null)
+                {
+                    timer = new System.Timers.Timer();
+                    timer.Elapsed += Smoother;
+                    timer.AutoReset = false;
+                    timer.Interval = 25;
+                }
+                else
+                {
+                    timer.Stop();
+                }
+
+                foreach (Follow_Spot spot in m_spots)
+                {
+                    double minVelocity = 0.02;
+                    Vector3D delta = spot.Target - spot.CurrentTarget;
+
+                    spot.Acceleration = 0.1 * delta - (0.5 * spot.Velocity);
+
+                    spot.Velocity += spot.Acceleration;
+
+
+                    if (spot.Velocity.Length > minVelocity)
+                        isMoving = true;
+
+                    spot.CurrentTarget += spot.Velocity;
+                    spot.Velocity *= 0.5;
+
+                    Vector3D p = (spot.CurrentTarget - spot.Location);
+                    Point3D direction = Spherical.ToSpherical(-p.Y, p.X, p.Z);
+                    direction.Y += 90;
+
+                    direction = Spherical.MinSphericalMove(new Point3D(1, spot.Tilt, spot.Pan), direction);
+                    spot.Tilt = direction.Y;
+                    spot.Pan = direction.Z;
+                }
+
+                updateDMX();
+
+                if (isMoving)
+                {
+                    timer.Start();
+                }
+            }
+        }
         public void updateDMX(byte[] packet)
         {
             ArtNetSequence++;
@@ -1179,6 +1234,7 @@ namespace MidiApp
         private double tilt;
         private bool isActive;
         private Point3D target;
+        private Point3D currentTarget;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -1186,6 +1242,8 @@ namespace MidiApp
         public int Head { get; set; }
         public int Universe { get; set; }
         public int Address { get; set; }
+        public Vector3D Velocity { get; set; }
+        public Vector3D Acceleration { get; set; }
 
         public string DMX_Base
         {
@@ -1193,6 +1251,7 @@ namespace MidiApp
         }
 
         public Point3D Target { get => target; set { target = value; OnPropertyChanged(); } }
+        public Point3D CurrentTarget { get => currentTarget; set { currentTarget = value; OnPropertyChanged(); } }
         public double Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
         public double Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
         public bool IsLeadSpot { get => isActive; set { isActive = value; OnPropertyChanged(); } }
