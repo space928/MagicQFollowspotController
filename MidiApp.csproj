@@ -160,6 +160,10 @@
       <Project>{216D055D-904D-4AAA-899A-7F780AEE9AEA}</Project>
       <Name>ArtNet</Name>
     </ProjectReference>
+    <ProjectReference Include="..\rawinputsharp\RawInputSharp\RawInputSharp.csproj">
+      <Project>{a409e257-14da-4b78-b875-1456035481b8}</Project>
+      <Name>RawInputSharp</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

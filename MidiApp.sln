@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ArtNet", "..\Haukcode.ArtNe
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rdm", "..\Haukcode.ArtNet\Rdm\Rdm.csproj", "{EFD6AB22-BDAD-4375-A422-CF228D6353BE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RawInputSharp", "..\rawinputsharp\RawInputSharp\RawInputSharp.csproj", "{A409E257-14DA-4B78-B875-1456035481B8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{EFD6AB22-BDAD-4375-A422-CF228D6353BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EFD6AB22-BDAD-4375-A422-CF228D6353BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EFD6AB22-BDAD-4375-A422-CF228D6353BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A409E257-14DA-4B78-B875-1456035481B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A409E257-14DA-4B78-B875-1456035481B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A409E257-14DA-4B78-B875-1456035481B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A409E257-14DA-4B78-B875-1456035481B8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

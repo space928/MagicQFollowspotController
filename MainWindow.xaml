@@ -73,13 +73,30 @@
             </Grid>
         </GroupBox>
         <GroupBox x:Name="groupBox_Spots" Header="Follow Spots" Margin="5,8,5,5" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2">
-            <DataGrid x:Name="FollwSpot_dataGrid" SelectionChanged="FollwSpot_dataGrid_SelectionChanged" IsReadOnly="True" AutoGenerateColumns="False" CanUserReorderColumns="False" ColumnWidth="*" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <DataGrid x:Name="FollwSpot_dataGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserReorderColumns="False" ColumnWidth="*" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
                 <DataGrid.Columns>
                     <DataGridTextColumn Binding="{Binding Head, Mode = OneWay}" ClipboardContentBinding="{x:Null}" Header="Head"/>
                     <DataGridTextColumn Binding="{Binding DMX_Base, Mode = OneWay }" ClipboardContentBinding="{x:Null}" Header="DMX Base"/>
                     <DataGridTextColumn Binding="{Binding Pan, Mode = OneWay, StringFormat='{}{0:F2}°'}" ClipboardContentBinding="{x:Null}" Header="Pan"/>
                     <DataGridTextColumn Binding="{Binding Tilt, Mode = OneWay, StringFormat='{}{0:F2}°'}" ClipboardContentBinding="{x:Null}" Header="Tilt"/>
-                    <DataGridCheckBoxColumn Binding="{Binding IsLeadSpot, Mode = OneWay}" ClipboardContentBinding="{x:Null}" Header="Lead Spot"/>
+                    <DataGridTextColumn Binding="{Binding MouseControlID, Mode = OneWay,StringFormat='{}{0:F0}'}" ClipboardContentBinding="{x:Null}" Header="Mouse Control">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding MouseControlID}" Value="-1">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding MouseControlID}" Value="0">
+                                        <Setter Property="Background" Value="Red"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding MouseControlID}" Value="1">
+                                        <Setter Property="Background" Value="Green"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+
+                    </DataGridTextColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>

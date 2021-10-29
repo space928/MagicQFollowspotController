@@ -107,6 +107,9 @@ namespace MidiApp
             double Bar2Height = 7.5;
             double Bar2Offset = 7;
 
+            double Bar3Height = 8.5;
+            double Bar3Offset = 7;
+
             try
             {
                 Width = MainWindow.AppResources.Width;
@@ -131,6 +134,9 @@ namespace MidiApp
 
                 Bar2Height = MainWindow.AppResources.Bar2Height;
                 Bar2Offset = MainWindow.AppResources.Bar2Offset;
+
+                Bar3Height = MainWindow.AppResources.Bar3Height;
+                Bar3Offset = MainWindow.AppResources.Bar3Offset;
 
             }
             catch 
@@ -162,6 +168,8 @@ namespace MidiApp
             var p14 = new Point3D(Width / 2, Length - StairStart - StairLength, 0);
             var p15 = new Point3D(Width / 2, Length - StairStart - StairLength, Roof);
 
+            // Back wall
+            mb.AddQuad(p12, p13, p14, p15);
 
             // Left wall
             mb.AddQuad(p0, p1, p2, p5);
@@ -214,11 +222,48 @@ namespace MidiApp
 
             modelGroup.Children.Add(new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = blueMaterial, BackMaterial = null });
 
+            if (MainWindow.AppResources.CameraPositions != null)
+            {
+                var b = MainWindow.AppResources.Boxes;
+                if (b != null)
+                {
+                    for (int i = 0; i < b.Count; i++)
+                    {
+
+                        var p = MainWindow.AppResources.Boxes[i];
+                        if (p != null)
+                        {
+                            mb = new MeshBuilder(true);
+                            Vector3D sz = (Vector3D)(p.Dimensions);
+                            Vector3D pos = (Vector3D)(p.Location);
+                            Vector3D rot = (Vector3D)(p.Roration);
+
+                            Transform3D transX = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), rot.X));
+                            Transform3D transY = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 1, 0), rot.Y));
+                            Transform3D transZ = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), rot.Z));
+                            Transform3D translate = new TranslateTransform3D(pos);
+
+                            Matrix3D transform = Matrix3D.Multiply(Matrix3D.Multiply(Matrix3D.Multiply(transX.Value, transY.Value), transZ.Value), translate.Value);
+
+
+                            mb.AddBox(new Point3D(0, 0, 0), sz.X, sz.Y, sz.Z);
+                            Model3D box = new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new MatrixTransform3D(transform), Material = blueMaterial, BackMaterial = null };
+                            modelGroup.Children.Add(box);
+                        }
+                    }
+                }
+            }
+
+            //mb = new MeshBuilder(true);
+            //mb.AddBox(new Point3D(0, BarAudienceOffset, BarAudienceHeight + 0.1), Width * 0.7, .1, .1);
+
+
             mb = new MeshBuilder(true);
             mb.AddBox(new Point3D(0, BarAudienceOffset, BarAudienceHeight + 0.1), Width * 0.7, .1, .1);
             mb.AddBox(new Point3D(0, 0, Bar0Height+0.1), Width*0.7, .1, .1);
             mb.AddBox(new Point3D(0, Bar1Offset, Bar1Height + 0.1), Width * 0.9, .1, .1);
             mb.AddBox(new Point3D(0, Bar2Offset, Bar2Height + 0.1), Width * 0.9, .1, .1);
+            mb.AddBox(new Point3D(0, Bar3Offset, Bar3Height + 0.1), Width * 0.9, .1, .1);
 
             m_Bars = new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = blueMaterial, BackMaterial = null };
             modelGroup.Children.Add(m_Bars);
@@ -231,7 +276,6 @@ namespace MidiApp
 
             m_Lights = new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = redMaterial, BackMaterial = null };
             modelGroup.Children.Add(m_Lights);
-
 
             // Set the property, which will be bound to the Content property of the ModelVisual3D (see MainWindow.xaml)
             Model = modelGroup;

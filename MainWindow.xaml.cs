@@ -37,9 +37,13 @@ namespace MidiApp
     public partial class MainWindow : AdonisUI.Controls.AdonisWindow
     {
 
-
-        static string MIDI_DEVICE_NAME = "LoopBe";
+#if DEBUG
         //static string MIDI_DEVICE_NAME = "X-TOUCH";
+        //        static string MIDI_DEVICE_NAME = "Launchpad Pro";
+        static string MIDI_DEVICE_NAME = "LoopBe";
+#else
+        static string MIDI_DEVICE_NAME = "X-TOUCH";
+#endif
         public OscSender sender;
         public OscReceiver receiver;
 
@@ -171,7 +175,7 @@ namespace MidiApp
             }
             catch (System.IO.FileNotFoundException)
             {
-                MessageBox.Show("Cannot find resource file\n"+ resourceFileName, "File Not Found", MessageBoxButton.OK, MessageBoxImage.Stop);
+                MessageBox.Show("Cannot find resource file\n" + resourceFileName, "File Not Found", MessageBoxButton.OK, MessageBoxImage.Stop);
                 Close();
                 return null;
             }
@@ -328,7 +332,8 @@ namespace MidiApp
         public void ArtNetactivity(int type)
         {
             ArtNetactivityTimer.Restart();
-            if (context != null) {
+            if (context != null)
+            {
                 context.Post(delegate (object dummy)
                 {
                     ArtNetActivityLED.Fill = GreenFill;
@@ -478,6 +483,7 @@ namespace MidiApp
                             }
 
                         }
+                        // fspot/start/<mouse1 spots list>#<mouse2 spots list>@<viewID>
                         else if (parts[1].Equals("fspot"))
                         {
                             if (parts.Length >= 2)
@@ -486,22 +492,45 @@ namespace MidiApp
                                 {
                                     string ids = msg.ToString();
                                     int viewID = -1;
+                                    ids = ids.Replace("\"", "");
 
                                     if (!ids.EndsWith("/"))
                                     {
-                                        ids = ids.Substring(ids.LastIndexOf('/') + 1);
-                                        string[] idspot = ids.Split(',');
+                                        int viewpos = ids.LastIndexOf('@');
+                                        if (viewpos > 0)
+                                        {
+                                            viewID = Int32.Parse(ids.Substring(viewpos + 1));
+                                            ids = ids.Substring(0, viewpos);
+                                        }
+                                        else
+                                        {
+                                            viewpos = ids.Length;
+                                        }
 
-                                        int headId = Int32.Parse(idspot[0]);
+                                        ids = ids.Substring(ids.LastIndexOf('/') + 1);
 
                                         foreach (Follow_Spot spot in m_spots)
                                         {
-                                            spot.IsLeadSpot = spot.Head == headId;
+                                            spot.MouseControlID = -1;
                                         }
-                                        if (idspot.Length > 1)
+
+                                        int mouse = 0;
+
+                                        foreach (string s in ids.Split('+'))
                                         {
-                                            viewID = Int32.Parse(idspot[1]);
+                                            foreach (string idspot in s.Split(','))
+                                            {
+                                                int headId = Int32.Parse(idspot);
+                                                foreach (Follow_Spot spot in m_spots)
+                                                {
+                                                    if (spot.Head == headId)
+                                                        spot.MouseControlID = mouse;
+                                                }
+                                            }
+
+                                            mouse++;
                                         }
+
                                     }
 
                                     context.Post(delegate (object dummy)
@@ -520,6 +549,16 @@ namespace MidiApp
                                         {
                                             m_threeDWindow.setCameraView(viewID - 1);
                                         }
+
+                                        if (spotsOnMouseControl())
+                                        {
+                                            m_threeDWindow.Macro_moveSpot(0);
+                                            m_threeDWindow.setActive(true);
+                                        }
+                                        else
+                                        {
+                                            m_threeDWindow.setActive(false);
+                                        }
                                     }, null);
 
                                 }
@@ -528,6 +567,15 @@ namespace MidiApp
                                     foreach (Follow_Spot spot in m_spots)
                                     {
                                         spot.IsLeadSpot = false;
+                                        spot.MouseControlID = -1;
+                                    }
+
+                                    if (m_threeDWindow != null)
+                                    {
+                                        context.Post(delegate (object dummy)
+                                        {
+                                            m_threeDWindow.setActive(false);
+                                        }, null);
                                     }
                                 }
                             }
@@ -631,7 +679,8 @@ namespace MidiApp
 
                 builder.Command = ChannelCommand.Controller;
 
-                for (var i = 0; i < 127; i++) {
+                for (var i = 0; i < 127; i++)
+                {
                     builder.Data1 = i;
                     builder.Data2 = 0;
                     builder.Build();
@@ -682,7 +731,8 @@ namespace MidiApp
                         case 0: p = new Point3D((double)v.XOffset, 0.0, (double)AppResources.Bar0Height + 0.1); break;
                         case -1: p = new Point3D((double)v.XOffset, (double)AppResources.BarAudienceOffset, (double)AppResources.BarAudienceHeight + 0.1); break;
                         case 1: p = new Point3D((double)v.XOffset, (double)AppResources.Bar1Offset, (double)AppResources.Bar1Height + 0.1); break;
-                        default: p = new Point3D((double)v.XOffset, (double)AppResources.Bar2Offset, (double)AppResources.Bar2Height + 0.1); break;
+                        case 2: p = new Point3D((double)v.XOffset, (double)AppResources.Bar2Offset, (double)AppResources.Bar2Height + 0.1); break;
+                        default: p = new Point3D((double)v.XOffset, (double)AppResources.Bar3Offset, (double)AppResources.Bar3Height + 0.1); break;
                     }
                     spot.Location = p;
 
@@ -693,6 +743,7 @@ namespace MidiApp
                 ArtNetListner();
 
                 m_threeDWindow = new ThreeD();
+                m_threeDWindow.setActive(false);
                 m_threeDWindow.grab();
 
             }
@@ -730,36 +781,35 @@ namespace MidiApp
             }
         }
 
-        public int leadSpot()
+        public bool spotsOnMouseControl()
         {
             int i = 0;
             for (i = 0; i < MainWindow.m_spots.Count; i++)
             {
-                if (MainWindow.m_spots[i].IsLeadSpot)
+                if (MainWindow.m_spots[i].MouseControlID >= 0)
                 {
-                    return i;
+                    return true;
                 }
             }
 
-            return -1;
+            return false;
         }
 
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
             //Console.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
-            if (leadSpot() < 0)
+            if (spotsOnMouseControl())
             {
                 ArtNetactivity(1);
 
-                context.Post(delegate (object dummy)
+                if (e.Packet.OpCode == Haukcode.ArtNet.ArtNetOpCodes.Dmx)
                 {
-                    if (e.Packet.OpCode == Haukcode.ArtNet.ArtNetOpCodes.Dmx)
+                    ArtNetDmxPacket dmx = (ArtNetDmxPacket)e.Packet;
+                    context.Post(delegate (object dummy)
                     {
-                        ArtNetDmxPacket dmx = (ArtNetDmxPacket)e.Packet;
-
                         foreach (Follow_Spot spot in m_spots)
                         {
-                            if (dmx.Universe == spot.Universe - 1)
+                            if (dmx.Universe == spot.Universe)
                             {
                                 spot.Pan = Math.Round(((dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address]) / 65535.0 * 540.0 - 270.0, 3);
                                 spot.Tilt = Math.Round(((dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2]) / 65535.0 * 270.0 - 135.0, 3);
@@ -774,16 +824,19 @@ namespace MidiApp
                         //                        int t = (dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2];
 
                         //Console.WriteLine("P: {0}, T:{1}", p, t);
-                        //updateDMX(dmx.DmxData);
+
                         //}
 
                         if (m_threeDWindow != null)
                         {
-                            m_threeDWindow.DMX_moveSpot(leadSpot());
+                            m_threeDWindow.DMX_moveSpot();
                         }
 
-                    }
-                }, null);
+                    }, null);
+
+                    if ((spotsOnMouseControl()) && ((dmx.Universe != (short)ARTNET_TXUniverse)))
+                        updateDMX(dmx.DmxData);
+                }
             }
 
         }
@@ -795,14 +848,14 @@ namespace MidiApp
 
             m_socket.NewPacket += ArtNet_NewPacket;
 
-//            var addresses = GetAddressesFromInterfaceType();
-//            var addr = addresses.ToArray()[2];
+            //            var addresses = GetAddressesFromInterfaceType();
+            //            var addr = addresses.ToArray()[2];
 
             m_socket.Open(ARTNET_RXIPAddress, ARTNET_RXSubNetMask);
 
-//            addr = addresses.ToArray()[0];
+            //            addr = addresses.ToArray()[0];
             m_TXsocket.Open(ARTNET_TXIPAddress, ARTNET_TXSubNetMask);
-//            m_TXsocket.Open(addr.Address, addr.NetMask);
+            //            m_TXsocket.Open(addr.Address, addr.NetMask);
             m_TXsocket.EnableBroadcast = ARTNET_TXUseBroadcast;
         }
 
@@ -853,7 +906,7 @@ namespace MidiApp
         {
 
             activity(0);
-
+            Console.WriteLine("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
             if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 < 10))
             {
                 sender.Send(new OscMessage("/pb/" + e.Message.Data1, e.Message.Data2 / 127.0f));
@@ -948,7 +1001,7 @@ namespace MidiApp
                 // Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
                 //                sender.Send(new OscMessage("/feedback/exec"));
             }
-            else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 == 127))
+            else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 >= 50))
             {
                 ChannelMessageBuilder builder = new ChannelMessageBuilder();
                 for (int j = 0; j < 9; j++)
@@ -957,7 +1010,7 @@ namespace MidiApp
                 }
                 buttons[e.Message.Data1 - 16] = true;
                 selectedPlayback = e.Message.Data1 - 39;
-
+                Console.WriteLine("selectedPlayback: " + selectedPlayback);
                 builder.Command = ChannelCommand.NoteOn;
                 for (int j = 0; j < 9; j++)
                 {
@@ -982,7 +1035,7 @@ namespace MidiApp
                 }
                 //Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
             }
-            else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 49) && (e.Message.Data1 <= 54) && (e.Message.Data2 == 127))
+            else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 49) && (e.Message.Data1 <= 54) && (e.Message.Data2 >= 50))
             {
                 if (selectedPlayback > 0)
                 {
@@ -1027,7 +1080,6 @@ namespace MidiApp
                 outDevice.Send(b2.Result);
 
             }
-
 
         }
 
@@ -1119,10 +1171,6 @@ namespace MidiApp
             AdonisWindow_PreviewLostKeyboardFocus(this, null);
         }
 
-        private void FollwSpot_dataGrid_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-        {
-
-        }
 
         private byte ArtNetSequence = 0;
         public void PointSpots()
@@ -1215,8 +1263,8 @@ namespace MidiApp
 
             foreach (Follow_Spot spot in m_spots)
             {
-                int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0),0);
-                int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0),0);
+                int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0), 0);
+                int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0), 0);
 
                 packet[spot.Address - 1] = (byte)(PanDMX / 256);
                 packet[spot.Address] = (byte)(PanDMX % 256);
@@ -1233,6 +1281,7 @@ namespace MidiApp
         private double pan;
         private double tilt;
         private bool isActive;
+        private int mouseControlID = -1;
         private Point3D target;
         private Point3D currentTarget;
 
@@ -1255,6 +1304,8 @@ namespace MidiApp
         public double Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
         public double Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
         public bool IsLeadSpot { get => isActive; set { isActive = value; OnPropertyChanged(); } }
+
+        public int MouseControlID { get => mouseControlID; set { mouseControlID = value; OnPropertyChanged(); } }
 
         // Create the OnPropertyChanged method to raise the event
         // The calling member's name will be used as the parameter.
