@@ -8,24 +8,26 @@
 
         xmlns:local="clr-namespace:MidiApp"
         mc:Ignorable="d"
-        Title="3D Followspot Tracker" Height="1000" Width="1200" Activated="Window_Activated" Topmost="True" KeyDown="ThreeD1_KeyDown" Closed="ThreeD1_Closed" Deactivated="ThreeD1_Deactivated"
-        >
+        Title="3D Followspot Tracker" Height="1000" Width="1200" Activated="Window_Activated" Topmost="True" KeyDown="ThreeD1_KeyDown" Closed="ThreeD1_Closed"
+        Cursor="None" Deactivated="ThreeD1_Deactivated">
     <Window.Background>
         <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.MenuTextColorKey}}"/>
     </Window.Background>
 
     <Window.DataContext>
-        <local:MainViewModel /> 
-    </Window.DataContext> 
+        <local:MainViewModel />
+    </Window.DataContext>
     <Grid>
-        <Rectangle x:Name="ActiveMarker" StrokeThickness="4" Stroke="Black"/>
-        <helix:HelixViewport3D x:Name="viewport3D" Grid.Row="1" MouseDown="viewport3D_MouseDown" MouseUp="HelixViewport3D_MouseUp" Margin="4">
+        <Rectangle x:Name="ActiveMarker" StrokeThickness="4"/>
+        <helix:HelixViewport3D x:Name="viewport3D" Grid.Row="1" MouseMove="HelixViewport3D_MouseMove" MouseDown="viewport3D_MouseDown" MouseUp="HelixViewport3D_MouseUp" Margin="4">
             <helix:DefaultLights/>
 
             <!--  The content of this visual is defined in MainViewModel.cs  -->
             <ModelVisual3D Content="{Binding Model}" />
 
             <helix:GridLinesVisual3D Center="0 0 -0.1" Fill="DarkGreen"/>
+
+            <helix:EllipsoidVisual3D Center="0 0 0" Fill="Green" RadiusX="0.45" RadiusY="0.3" RadiusZ="0.45"/>
 
         </helix:HelixViewport3D>
         <Canvas x:Name="RedCursor" HorizontalAlignment="Left" Height="50" VerticalAlignment="Top" Width="50" Margin="210,176,0,0" IsHitTestVisible="False">

@@ -155,8 +155,8 @@ namespace MidiApp
         }
         private void ThreeD1_Deactivated(object sender, EventArgs e)
         {
-            HwndSource source = HwndSource.FromHwnd(myhwnd);
-            source.RemoveHook(myHook);
+ //           HwndSource source = HwndSource.FromHwnd(myhwnd);
+//            source.RemoveHook(myHook);
         }
 
 

@@ -220,9 +220,7 @@ namespace MidiApp
 
             mb.AddTriangleFan(points3D, normals);
 
-            GeometryModel3D stage = new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = blueMaterial, BackMaterial = null };
-            stage.SetName("Stage");
-            modelGroup.Children.Add(stage);
+            modelGroup.Children.Add(new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new TranslateTransform3D(0, 0, 0), Material = blueMaterial, BackMaterial = null });
 
             if (MainWindow.AppResources.CameraPositions != null)
             {
@@ -250,7 +248,6 @@ namespace MidiApp
 
                             mb.AddBox(new Point3D(0, 0, 0), sz.X, sz.Y, sz.Z);
                             Model3D box = new GeometryModel3D { Geometry = mb.ToMesh(), Transform = new MatrixTransform3D(transform), Material = blueMaterial, BackMaterial = null };
-                            box.SetName("Set");
                             modelGroup.Children.Add(box);
                         }
                     }

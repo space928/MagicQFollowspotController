@@ -38,9 +38,9 @@ namespace MidiApp
     {
 
 #if DEBUG
-        static string MIDI_DEVICE_NAME = "X-TOUCH";
+        //static string MIDI_DEVICE_NAME = "X-TOUCH";
         //        static string MIDI_DEVICE_NAME = "Launchpad Pro";
-        //static string MIDI_DEVICE_NAME = "LoopBe";
+        static string MIDI_DEVICE_NAME = "LoopBe";
 #else
         static string MIDI_DEVICE_NAME = "X-TOUCH";
 #endif
@@ -175,7 +175,7 @@ namespace MidiApp
             }
             catch (System.IO.FileNotFoundException)
             {
-                MessageBox.Show("Cannot find resource file\n"+ resourceFileName, "File Not Found", MessageBoxButton.OK, MessageBoxImage.Stop);
+                MessageBox.Show("Cannot find resource file\n" + resourceFileName, "File Not Found", MessageBoxButton.OK, MessageBoxImage.Stop);
                 Close();
                 return null;
             }
@@ -332,7 +332,8 @@ namespace MidiApp
         public void ArtNetactivity(int type)
         {
             ArtNetactivityTimer.Restart();
-            if (context != null) {
+            if (context != null)
+            {
                 context.Post(delegate (object dummy)
                 {
                     ArtNetActivityLED.Fill = GreenFill;
@@ -496,9 +497,9 @@ namespace MidiApp
                                     if (!ids.EndsWith("/"))
                                     {
                                         int viewpos = ids.LastIndexOf('@');
-                                        if (viewpos>0)
+                                        if (viewpos > 0)
                                         {
-                                            viewID = Int32.Parse(ids.Substring(viewpos+1));
+                                            viewID = Int32.Parse(ids.Substring(viewpos + 1));
                                             ids = ids.Substring(0, viewpos);
                                         }
                                         else
@@ -678,7 +679,8 @@ namespace MidiApp
 
                 builder.Command = ChannelCommand.Controller;
 
-                for (var i = 0; i < 127; i++) {
+                for (var i = 0; i < 127; i++)
+                {
                     builder.Data1 = i;
                     builder.Data2 = 0;
                     builder.Build();
@@ -784,7 +786,7 @@ namespace MidiApp
             int i = 0;
             for (i = 0; i < MainWindow.m_spots.Count; i++)
             {
-                if (MainWindow.m_spots[i].MouseControlID>=0)
+                if (MainWindow.m_spots[i].MouseControlID >= 0)
                 {
                     return true;
                 }
@@ -832,7 +834,7 @@ namespace MidiApp
 
                     }, null);
 
-                    if ((spotsOnMouseControl()) && ( (dmx.Universe != (short)ARTNET_TXUniverse)))
+                    if ((spotsOnMouseControl()) && ((dmx.Universe != (short)ARTNET_TXUniverse)))
                         updateDMX(dmx.DmxData);
                 }
             }
@@ -846,14 +848,14 @@ namespace MidiApp
 
             m_socket.NewPacket += ArtNet_NewPacket;
 
-//            var addresses = GetAddressesFromInterfaceType();
-//            var addr = addresses.ToArray()[2];
+            //            var addresses = GetAddressesFromInterfaceType();
+            //            var addr = addresses.ToArray()[2];
 
             m_socket.Open(ARTNET_RXIPAddress, ARTNET_RXSubNetMask);
 
-//            addr = addresses.ToArray()[0];
+            //            addr = addresses.ToArray()[0];
             m_TXsocket.Open(ARTNET_TXIPAddress, ARTNET_TXSubNetMask);
-//            m_TXsocket.Open(addr.Address, addr.NetMask);
+            //            m_TXsocket.Open(addr.Address, addr.NetMask);
             m_TXsocket.EnableBroadcast = ARTNET_TXUseBroadcast;
         }
 
@@ -1261,8 +1263,8 @@ namespace MidiApp
 
             foreach (Follow_Spot spot in m_spots)
             {
-                int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0),0);
-                int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0),0);
+                int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0), 0);
+                int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0), 0);
 
                 packet[spot.Address - 1] = (byte)(PanDMX / 256);
                 packet[spot.Address] = (byte)(PanDMX % 256);
@@ -1279,7 +1281,7 @@ namespace MidiApp
         private double pan;
         private double tilt;
         private bool isActive;
-        private int mouseControlID =-1;
+        private int mouseControlID = -1;
         private Point3D target;
         private Point3D currentTarget;
 
