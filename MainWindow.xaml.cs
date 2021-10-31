@@ -8,17 +8,12 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Timers;
 using System.Windows;
-using System.Windows.Data;
-using System.Windows.Documents;
+using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Media3D;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 using Haukcode.ArtNet.Packets;
 using Haukcode.ArtNet.Sockets;
@@ -26,7 +21,7 @@ using Haukcode.Sockets;
 using Rug.Osc;
 using Sanford.Multimedia;
 using Sanford.Multimedia.Midi;
-
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace MidiApp
 {
@@ -54,30 +49,19 @@ namespace MidiApp
 
         public Thread m_Thread = null;
         public Thread activity_Thread = null;
+        public Thread FSactivity_Thread = null;
         public Thread ArtNetactivity_Thread = null;
         public ArtNetSocket m_socket = null;
         public ArtNetSocket m_TXsocket = null;
         public static List<Follow_Spot> m_spots = new List<Follow_Spot>();
 
         public Thread mqConnection_Thread = null;
-        public String MQhostname = "not connected";
-        public String MQshowfile = "not connected";
 
         public string resourceFileName = @"resources.json";
         public static dynamic AppResources;
         public Thread m_ResourceLoader_Thread = null;
 
-        public ThreeD m_threeDWindow = null;
-
         Dictionary<string, int> attributes = new Dictionary<string, int>();
-
-        //string[] attributeNames = {"Intensity", "Intensity Mode", "Shutter", "Iris", "Pan", "Tilt", "Col1", "Col2",
-        //                            "Gobo1", "Gobo2", "Rotate1", "Rotate2", "Focus", "Zoom", "FX1", "FX2", "Cyan",
-        //                            "Magenta", "Yellow", "Colmix", "Cont1", "Cont2", "Macro1", "Macro2", "Undefined1",
-        //                            "Undefined2", "Col3", "Col4", "Gobo3", "Gobo4", "Rotate3", "Rotate4", "Frost1",
-        //                            "Frost2", "FX3", "FX4", "FX5", "FX6", "FX7", "FX8", "Cont3", "Cont4", "Cont5",
-        //                            "Cont6", "Cont7", "Cont8", "Pos1", "Pos2", "Pos3", "Pos4", "Pos5", "Pos6"
-        //};
 
         string[] attributeNames = {"Dimmer", "Dim Mode", "Shutter", "Iris", "Pan", "Tilt", "Col1", "Col2",
                                     "Gobo1", "Gobo2", "Rotate1", "Rotate2", "Focus", "Zoom", "FX1 Prism",
@@ -175,7 +159,7 @@ namespace MidiApp
             }
             catch (System.IO.FileNotFoundException)
             {
-                MessageBox.Show("Cannot find resource file\n"+ resourceFileName, "File Not Found", MessageBoxButton.OK, MessageBoxImage.Stop);
+                MessageBox.Show("Cannot find resource file\n" + resourceFileName, "File Not Found", MessageBoxButton.OK, MessageBoxImage.Stop);
                 Close();
                 return null;
             }
@@ -193,11 +177,6 @@ namespace MidiApp
                     if (latestTime > time)
                     {
                         AppResources = getAppResource();
-                        context.Post(delegate (object dummy)
-                        {
-                            m_threeDWindow?.UpdateModel();
-                        }, null);
-
                         time = latestTime;
                     }
                     else
@@ -300,6 +279,163 @@ namespace MidiApp
             }
         }
 
+
+        public static Color HSL2RGB(double h, double sl, double l)
+        {
+
+            double v;
+            double r, g, b;
+
+            h /= 360.0;
+            sl /= 100.0;
+            l /= 100.0;
+
+            r = l;   // default to gray
+            g = l;
+            b = l;
+            v = (l <= 0.5) ? (l * (1.0 + sl)) : (l + sl - l * sl);
+            if (v > 0)
+            {
+                double m;
+                double sv;
+                int sextant;
+                double fract, vsf, mid1, mid2;
+
+                m = l + l - v;
+                sv = (v - m) / v;
+                h *= 6.0;
+                sextant = (int)h;
+                fract = h - sextant;
+                vsf = v * sv * fract;
+                mid1 = m + vsf;
+                mid2 = v - vsf;
+                switch (sextant)
+                {
+                    case 0:
+                        r = v;
+                        g = mid1;
+                        b = m;
+                        break;
+                    case 1:
+                        r = mid2;
+                        g = v;
+                        b = m;
+                        break;
+                    case 2:
+                        r = m;
+                        g = v;
+                        b = mid1;
+                        break;
+                    case 3:
+                        r = m;
+                        g = mid2;
+                        b = v;
+                        break;
+                    case 4:
+                        r = mid1;
+                        g = m;
+                        b = v;
+                        break;
+                    case 5:
+                        r = v;
+                        g = m;
+                        b = mid2;
+                        break;
+                }
+            }
+            Color rgb = new Color();
+            rgb.A = 0xff;
+            rgb.R = Convert.ToByte(r * 255.0f);
+            rgb.G = Convert.ToByte(g * 255.0f);
+            rgb.B = Convert.ToByte(b * 255.0f);
+            return rgb;
+        }
+
+        Stopwatch FSactivityTimer = Stopwatch.StartNew();
+
+        double[] clientHues = { 0, 120, 240, 300, 60};
+
+        SolidColorBrush[][] clientColours = new SolidColorBrush[5][];
+
+        public ClientHandler[] clientHandlers = new ClientHandler[5];
+
+        Button[] clientButtons = new Button[5];
+
+        void FSActivityMonitor()
+        {
+            clientButtons[0] = Client0;
+            clientButtons[1] = Client1;
+            clientButtons[2] = Client2;
+            clientButtons[3] = Client3;
+            clientButtons[4] = Client4;
+
+            if (context != null)
+            {
+                context.Post(delegate (object dummy)
+                {
+
+                    for (int i = 0; i < clientHues.Length; i++)
+                    {
+                        SolidColorBrush[] colors = new SolidColorBrush[3];
+
+                        colors[0] = new SolidColorBrush(HSL2RGB(clientHues[i], 20.0, 25.0));
+                        colors[1] = new SolidColorBrush(HSL2RGB(clientHues[i], 50.0, 35.0));
+                        colors[2] = new SolidColorBrush(HSL2RGB(clientHues[i], 100.0, 50.0));
+
+                        clientColours[i] = colors;
+
+                    }
+                }, null);
+            }
+
+            while (true)
+            {
+                try
+                {
+                    Thread.Sleep(100);
+                    if (context != null)
+                    {
+                        context.Post(delegate (object dummy)
+                        {
+                            if (FSactivityTimer.ElapsedMilliseconds > 200)
+                            {
+                                for (int i = 0; i < clientHues.Length; i++)
+                                {
+                                    if (clientHandlers[i] != null)
+                                    {
+                                        clientButtons[i].Background = clientColours[i][1];
+                                    }
+                                    else
+                                    {
+                                        clientButtons[i].Background = clientColours[i][0];
+                                    }
+                                }
+                            }
+                        }, null);
+                    }
+                }
+                catch (ThreadInterruptedException)
+                {
+
+                }
+
+            }
+        }
+
+        public void FSactivity(int clientID)
+        {
+            FSactivityTimer.Restart();
+            if (context != null)
+            {
+                context.Post(delegate (object dummy)
+                {
+                    if (clientID>=0)
+                        clientButtons[clientID].Background = clientColours[clientID][2];
+                }, null);
+            }
+        }
+
+
         Stopwatch ArtNetactivityTimer = Stopwatch.StartNew();
 
         void ArtNetActivityMonitor()
@@ -332,7 +468,8 @@ namespace MidiApp
         public void ArtNetactivity(int type)
         {
             ArtNetactivityTimer.Restart();
-            if (context != null) {
+            if (context != null)
+            {
                 context.Post(delegate (object dummy)
                 {
                     ArtNetActivityLED.Fill = GreenFill;
@@ -496,9 +633,9 @@ namespace MidiApp
                                     if (!ids.EndsWith("/"))
                                     {
                                         int viewpos = ids.LastIndexOf('@');
-                                        if (viewpos>0)
+                                        if (viewpos > 0)
                                         {
-                                            viewID = Int32.Parse(ids.Substring(viewpos+1));
+                                            viewID = Int32.Parse(ids.Substring(viewpos + 1));
                                             ids = ids.Substring(0, viewpos);
                                         }
                                         else
@@ -532,50 +669,49 @@ namespace MidiApp
 
                                     }
 
-                                    context.Post(delegate (object dummy)
-                                    {
-                                        if (m_threeDWindow == null)
-                                        {
-                                            m_threeDWindow = new ThreeD();
-                                            m_threeDWindow.grab();
-                                        }
-                                        else
-                                        {
-                                            m_threeDWindow.Show();
-                                        }
+                                    //context.Post(delegate (object dummy)
+                                    //{
+                                    //    if (m_threeDWindow == null)
+                                    //    {
+                                    //        m_threeDWindow = new ThreeD();
+                                    //        m_threeDWindow.grab();
+                                    //    }
+                                    //    else
+                                    //    {
+                                    //        m_threeDWindow.Show();
+                                    //    }
 
-                                        if (viewID > 0)
-                                        {
-                                            m_threeDWindow.setCameraView(viewID - 1);
-                                        }
+                                    //    if (viewID > 0)
+                                    //    {
+                                    //        m_threeDWindow.setCameraView(viewID - 1);
+                                    //    }
 
-                                        if (spotsOnMouseControl())
-                                        {
-                                            m_threeDWindow.Macro_moveSpot(0);
-                                            m_threeDWindow.setActive(true);
-                                        }
-                                        else
-                                        {
-                                            m_threeDWindow.setActive(false);
-                                        }
-                                    }, null);
+                                    //    if (spotsOnMouseControl())
+                                    //    {
+                                    //        m_threeDWindow.Macro_moveSpot(0);
+                                    //        m_threeDWindow.setActive(true);
+                                    //    }
+                                    //    else
+                                    //    {
+                                    //        m_threeDWindow.setActive(false);
+                                    //    }
+                                    //}, null);
 
                                 }
                                 else if (parts[2] == "stop")
                                 {
                                     foreach (Follow_Spot spot in m_spots)
                                     {
-                                        spot.IsLeadSpot = false;
                                         spot.MouseControlID = -1;
                                     }
 
-                                    if (m_threeDWindow != null)
-                                    {
-                                        context.Post(delegate (object dummy)
-                                        {
-                                            m_threeDWindow.setActive(false);
-                                        }, null);
-                                    }
+                                    //if (m_threeDWindow != null)
+                                    //{
+                                    //    context.Post(delegate (object dummy)
+                                    //    {
+                                    //        m_threeDWindow.setActive(false);
+                                    //    }, null);
+                                    //}
                                 }
                             }
 
@@ -629,6 +765,15 @@ namespace MidiApp
                 RedFill = new RadialGradientBrush(Color.FromRgb(0xFF, 0x1D, 0x1D), Color.FromRgb(0xE0, 0x00, 0x00));
                 WhiteFill = new RadialGradientBrush(Color.FromRgb(0x60, 0x80, 0x60), Color.FromRgb(0x20, 0x60, 0x20));
 
+
+
+                if (FSactivity_Thread == null)
+                {
+                    FSactivity_Thread = new Thread(new ThreadStart(FSActivityMonitor));
+                    FSactivity_Thread.IsBackground = true;
+                    FSactivity_Thread.Start();
+                }
+
                 if (activity_Thread == null)
                 {
                     activity_Thread = new Thread(new ThreadStart(ActivityMonitor));
@@ -678,7 +823,8 @@ namespace MidiApp
 
                 builder.Command = ChannelCommand.Controller;
 
-                for (var i = 0; i < 127; i++) {
+                for (var i = 0; i < 127; i++)
+                {
                     builder.Data1 = i;
                     builder.Data2 = 0;
                     builder.Build();
@@ -715,13 +861,15 @@ namespace MidiApp
                 m_Thread.IsBackground = true;
                 m_Thread.Start();
 
+                StartListening(MQ_IPAddress);
+
                 foreach (dynamic v in AppResources.Lights)
                 {
                     Follow_Spot spot = new Follow_Spot();
                     spot.Head = v.Head;
                     spot.Universe = v.Universe;
                     spot.Address = v.Address;
-                    spot.IsLeadSpot = false;
+                    spot.MouseControlID = -1;
 
                     Point3D p;
                     switch ((int)v.Bar)
@@ -739,10 +887,6 @@ namespace MidiApp
                 FollwSpot_dataGrid.ItemsSource = m_spots;
 
                 ArtNetListner();
-
-                m_threeDWindow = new ThreeD();
-                m_threeDWindow.setActive(false);
-                m_threeDWindow.grab();
 
             }
             catch (Exception ex)
@@ -784,7 +928,7 @@ namespace MidiApp
             int i = 0;
             for (i = 0; i < MainWindow.m_spots.Count; i++)
             {
-                if (MainWindow.m_spots[i].MouseControlID>=0)
+                if (MainWindow.m_spots[i].MouseControlID >= 0)
                 {
                     return true;
                 }
@@ -796,7 +940,7 @@ namespace MidiApp
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
             //Console.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
-            if (spotsOnMouseControl())
+            if (!spotsOnMouseControl())
             {
                 ArtNetactivity(1);
 
@@ -825,14 +969,13 @@ namespace MidiApp
 
                         //}
 
-                        if (m_threeDWindow != null)
-                        {
-                            m_threeDWindow.DMX_moveSpot();
-                        }
+
+
+                        // Tell clients
 
                     }, null);
 
-                    if ((spotsOnMouseControl()) && ( (dmx.Universe != (short)ARTNET_TXUniverse)))
+                    if ((spotsOnMouseControl()) && ((dmx.Universe != (short)ARTNET_TXUniverse)))
                         updateDMX(dmx.DmxData);
                 }
             }
@@ -846,14 +989,14 @@ namespace MidiApp
 
             m_socket.NewPacket += ArtNet_NewPacket;
 
-//            var addresses = GetAddressesFromInterfaceType();
-//            var addr = addresses.ToArray()[2];
+            //            var addresses = GetAddressesFromInterfaceType();
+            //            var addr = addresses.ToArray()[2];
 
             m_socket.Open(ARTNET_RXIPAddress, ARTNET_RXSubNetMask);
 
-//            addr = addresses.ToArray()[0];
+            //            addr = addresses.ToArray()[0];
             m_TXsocket.Open(ARTNET_TXIPAddress, ARTNET_TXSubNetMask);
-//            m_TXsocket.Open(addr.Address, addr.NetMask);
+            //            m_TXsocket.Open(addr.Address, addr.NetMask);
             m_TXsocket.EnableBroadcast = ARTNET_TXUseBroadcast;
         }
 
@@ -880,19 +1023,6 @@ namespace MidiApp
                 m_Thread.Interrupt();
             Application.Current.Shutdown();
 
-        }
-
-        private void stopButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (m_threeDWindow == null)
-            {
-                m_threeDWindow = new ThreeD();
-                m_threeDWindow.grab();
-            }
-            else
-            {
-                m_threeDWindow.Show();
-            }
         }
 
         private void inDevice_Error(object source, ErrorEventArgs e)
@@ -1169,7 +1299,6 @@ namespace MidiApp
             AdonisWindow_PreviewLostKeyboardFocus(this, null);
         }
 
-
         private byte ArtNetSequence = 0;
         public void PointSpots()
         {
@@ -1184,63 +1313,9 @@ namespace MidiApp
             //    spot.Pan = direction.Z;
             //}
 
-            //updateDMX();
-            Smoother(null, null);
+            updateDMX();
         }
 
-        System.Timers.Timer timer = null;
-        readonly object timerLock = new object();
-
-        void Smoother(object sender, ElapsedEventArgs e)
-        {
-            bool isMoving = false;
-            lock (timerLock)
-            {
-                if (timer == null)
-                {
-                    timer = new System.Timers.Timer();
-                    timer.Elapsed += Smoother;
-                    timer.AutoReset = false;
-                    timer.Interval = 25;
-                }
-                else
-                {
-                    timer.Stop();
-                }
-
-                foreach (Follow_Spot spot in m_spots)
-                {
-                    double minVelocity = 0.02;
-                    Vector3D delta = spot.Target - spot.CurrentTarget;
-
-                    spot.Acceleration = 0.1 * delta - (0.5 * spot.Velocity);
-
-                    spot.Velocity += spot.Acceleration;
-
-
-                    if (spot.Velocity.Length > minVelocity)
-                        isMoving = true;
-
-                    spot.CurrentTarget += spot.Velocity;
-                    spot.Velocity *= 0.5;
-
-                    Vector3D p = (spot.CurrentTarget - spot.Location);
-                    Point3D direction = Spherical.ToSpherical(-p.Y, p.X, p.Z);
-                    direction.Y += 90;
-
-                    direction = Spherical.MinSphericalMove(new Point3D(1, spot.Tilt, spot.Pan), direction);
-                    spot.Tilt = direction.Y;
-                    spot.Pan = direction.Z;
-                }
-
-                updateDMX();
-
-                if (isMoving)
-                {
-                    timer.Start();
-                }
-            }
-        }
         public void updateDMX(byte[] packet)
         {
             ArtNetSequence++;
@@ -1261,8 +1336,8 @@ namespace MidiApp
 
             foreach (Follow_Spot spot in m_spots)
             {
-                int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0),0);
-                int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0),0);
+                int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0), 0);
+                int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0), 0);
 
                 packet[spot.Address - 1] = (byte)(PanDMX / 256);
                 packet[spot.Address] = (byte)(PanDMX % 256);
@@ -1272,47 +1347,185 @@ namespace MidiApp
 
             updateDMX(packet);
         }
+
+
+        // Thread signal.  
+        public static ManualResetEvent allDone = new ManualResetEvent(false);
+        Thread listenThread;
+        Socket listener;
+
+        public void StartListening(IPAddress ipAddress)
+        {
+            // Establish the local endpoint for the socket.  
+            // The DNS name of the computer  
+            // running the listener is "host.contoso.com".  
+            //            IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
+            //            IPAddress ipAddress = MQ_IPAddress;
+            IPEndPoint localEndPoint = new IPEndPoint(ipAddress, 11000);
+
+            // Create a TCP/IP socket.  
+            listener = new Socket(ipAddress.AddressFamily,
+                SocketType.Stream, ProtocolType.Tcp);
+
+            // Bind the socket to the local endpoint and listen for incoming connections.  
+            try
+            {
+                listener.Bind(localEndPoint);
+                listener.Listen(100);
+
+                if (listenThread == null)
+                {
+                    listenThread = new Thread(new ThreadStart(listenLoop));
+                    listenThread.IsBackground = true;
+                    listenThread.Start();
+                }
+
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+        }
+
+        public void listenLoop()
+        {
+            try
+            {
+                while (true)
+                {
+                    // Set the event to nonsignaled state.  
+                    allDone.Reset();
+
+                    // Start an asynchronous socket to listen for connections.  
+                    Console.WriteLine("Waiting for a connection...");
+                    Socket client = listener.Accept();
+                    ClientHandler ch = new ClientHandler(client, this);
+
+                    ch.start();
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+        }
+
     }
 
-    public class Follow_Spot : INotifyPropertyChanged
+
+    public class ClientHandler
     {
-        private double pan;
-        private double tilt;
-        private bool isActive;
-        private int mouseControlID =-1;
-        private Point3D target;
-        private Point3D currentTarget;
+        Socket client;
+        MainWindow mainWindow;
+        Thread clientThread;
+        int clientID = -1;
 
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        public Point3D Location { get; set; }
-        public int Head { get; set; }
-        public int Universe { get; set; }
-        public int Address { get; set; }
-        public Vector3D Velocity { get; set; }
-        public Vector3D Acceleration { get; set; }
-
-        public string DMX_Base
+        public ClientHandler(Socket p_client, MainWindow p_mainWindow)
         {
-            get => Universe.ToString() + "-" + Address.ToString();
+            client = p_client;
+            mainWindow = p_mainWindow;
+
+            try
+            {
+                if (clientThread == null)
+                {
+                    clientThread = new Thread(new ThreadStart(clientLoop));
+                    clientThread.IsBackground = true;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+
         }
 
-        public Point3D Target { get => target; set { target = value; OnPropertyChanged(); } }
-        public Point3D CurrentTarget { get => currentTarget; set { currentTarget = value; OnPropertyChanged(); } }
-        public double Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
-        public double Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
-        public bool IsLeadSpot { get => isActive; set { isActive = value; OnPropertyChanged(); } }
-
-        public int MouseControlID { get => mouseControlID; set { mouseControlID = value; OnPropertyChanged(); } }
-
-        // Create the OnPropertyChanged method to raise the event
-        // The calling member's name will be used as the parameter.
-        protected void OnPropertyChanged([CallerMemberName] string name = null)
+        public void start()
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+            clientThread.Start();
         }
 
+        public void shutdown()
+        {
+            try
+            {
+                Console.WriteLine($"Client {clientID} shutting down.");
+                if (clientID >= 0)
+                    mainWindow.clientHandlers[clientID] = null;
+
+                client.Shutdown(SocketShutdown.Both);
+                client.Close();
+                Console.WriteLine($"Client {clientID} shut down.");
+            }
+            catch (Exception w)
+            {
+                Console.WriteLine($"Client {clientID} shut down error: {w}");
+            }
+        }
+
+        void clientLoop()
+        {
+            byte[] buffer = new byte[1024];
+
+            try
+            {
+                // Connect to the remote endpoint.  
+                while (true)
+                {
+                    int count = client.Receive(buffer, 1, SocketFlags.None);
+                    mainWindow.FSactivity(clientID);
+
+                    switch (buffer[0])
+                    {
+                        case 0:
+                            Console.WriteLine("Server Command: " + buffer[0]);
+                            break;
+                        case 1:
+                            client.Receive(buffer, 1, 1, SocketFlags.None);
+                            clientID = buffer[1]-1;
+                            if (mainWindow.clientHandlers[clientID] != null)
+                            {
+                                mainWindow.clientHandlers[clientID].shutdown();
+                            }
+                            mainWindow.clientHandlers[clientID] = this;
+
+                            Console.WriteLine("Server Command: " + buffer[0]);
+                            break;
+
+                        case 2:
+                            client.Receive(buffer, 1, 2, SocketFlags.None);
+                            int length = buffer[1] * 256 + buffer[2];
+                            byte[] rcv_buffer = new byte[length];
+                            int recieved = 0;
+                            while (recieved < length)
+                            {
+                                recieved += client.Receive(rcv_buffer, recieved, length - recieved, SocketFlags.None);
+                            }
+
+                            BinaryFormatter deserializer = new BinaryFormatter();
+                            deserializer.AssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple;
+
+                            dynamic newspots = deserializer.Deserialize(new System.IO.MemoryStream(rcv_buffer, false));
+                            //Console.WriteLine("DMX Update:" + newspots[0]);
+                            for (int i = 0; i < MainWindow.m_spots.Count; i++)
+                            {
+                                MainWindow.m_spots[i].Pan = newspots[i].Pan;
+                                MainWindow.m_spots[i].Tilt = newspots[i].Tilt;
+                            }
+                            break;
+
+                        default:
+                            Console.WriteLine("Server Command: " + buffer[0]);
+                            break;
+                    }
+
+                }
+            }
+            catch (Exception w)
+            {
+                shutdown();
+            }
+
+        }
     }
-
-
 }

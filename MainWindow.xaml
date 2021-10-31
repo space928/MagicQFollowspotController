@@ -101,7 +101,15 @@
             </DataGrid>
         </GroupBox>
         <Image x:Name="Title_jpg" Margin="10,0,0,0" Source="TitleDk.png" VerticalAlignment="Top" Grid.ColumnSpan="2" HorizontalAlignment="Left" Width="622" Height="97"/>
-        <Button x:Name="button" Content="Show 3D Tracker" Margin="0,0,5,5" Click="stopButton_Click" HorizontalAlignment="Right" Width="195" Height="31" VerticalAlignment="Bottom" Grid.Column="1" Grid.Row="1"/>
+
+        <!--<Button x:Name="button" Content="Show 3D Tracker" Margin="0,0,5,5" Click="stopButton_Click" HorizontalAlignment="Right" Width="195" Height="31" VerticalAlignment="Bottom" Grid.Column="1" Grid.Row="1"/>-->
         <CheckBox x:Name="alwaysOnTop" Content="Stay on top" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,0,10" Width="136" Unchecked="alwaysOnTop_Unchecked" Checked="alwaysOnTop_Checked" Height="16" VerticalAlignment="Bottom" Grid.Row="1"/>
+        <Grid Margin="0,0,5,5" HorizontalAlignment="Right" Width="195" Height="31" VerticalAlignment="Bottom" Grid.Column="1" Grid.Row="1">
+            <Button x:Name="Client0" Grid.Column="0" Width="31" HorizontalAlignment="Left" Background="#FF4D3333" Content="1" FontSize="16"/>
+            <Button x:Name="Client1" Grid.Column="1" Width="31" HorizontalAlignment="Left" Margin="36,0,0,0" Background="#FF334D33" Content="2" FontSize="16"/>
+            <Button x:Name="Client2" Grid.Column="2" Width="31" HorizontalAlignment="Left" Margin="73,0,0,0" Background="#FF33334D" Content="3" FontSize="16"/>
+            <Button x:Name="Client3" Grid.Column="3" Width="31" HorizontalAlignment="Left" Margin="109,0,0,0" Background="#FF4D334D" Content="4" FontSize="16"/>
+            <Button x:Name="Client4" Width="31" HorizontalAlignment="Left" Margin="145,0,0,0" Background="#FF4D4D33" Content="5" FontSize="16"/>
+        </Grid>
     </Grid>
 </adonisControls:AdonisWindow>

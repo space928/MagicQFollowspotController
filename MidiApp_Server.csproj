@@ -81,11 +81,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Spherical.cs" />
-    <Compile Include="MainViewModel.cs" />
-    <Compile Include="ThreeD.xaml.cs">
-      <DependentUpon>ThreeD.xaml</DependentUpon>
-    </Compile>
+    <Compile Include="Follow_Spot.cs" />
     <Compile Include="XTouchSearchWindow.xaml.cs">
       <DependentUpon>XTouchSearchWindow.xaml</DependentUpon>
     </Compile>
@@ -101,10 +97,6 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Page Include="ThreeD.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
     <Page Include="XTouchSearchWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
