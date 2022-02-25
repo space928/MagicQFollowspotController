@@ -32,13 +32,23 @@ namespace MidiApp
     public partial class MainWindow : AdonisUI.Controls.AdonisWindow
     {
 
-#if DEBUG
-        static string MIDI_DEVICE_NAME = "X-TOUCH";
+#if NDEBUG
+        //static string MIDI_DEVICE_NAME = "X-TOUCH";
         //        static string MIDI_DEVICE_NAME = "Launchpad Pro";
-        //static string MIDI_DEVICE_NAME = "LoopBe";
+        static string MIDI_DEVICE_NAME = "LoopBe";
 #else
         static string MIDI_DEVICE_NAME = "X-TOUCH";
 #endif
+
+        double TILT_RANGE = 270.0;
+        bool TILT_INVERT = false;
+
+        double PAN_RANGE = 540.0;
+        bool PAN_INVERT = true;
+
+        int PAN_DMX_OFFSET = 22;
+        int TILT_DMX_OFFSET = 24;
+
         public OscSender sender;
         public OscReceiver receiver;
 
@@ -953,8 +963,16 @@ namespace MidiApp
                         {
                             if (dmx.Universe == spot.Universe)
                             {
-                                spot.Pan = Math.Round(((dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address]) / 65535.0 * 540.0 - 270.0, 3);
-                                spot.Tilt = Math.Round(((dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2]) / 65535.0 * 270.0 - 135.0, 3);
+                                double pan = Math.Round(((dmx.DmxData[spot.Address + (PAN_DMX_OFFSET - 1)] * 256) + dmx.DmxData[spot.Address + (PAN_DMX_OFFSET)]) / 65535.0 * PAN_RANGE - (PAN_RANGE / 2), 3);
+                                double tilt = Math.Round(((dmx.DmxData[spot.Address + (TILT_DMX_OFFSET - 1)] * 256) + dmx.DmxData[spot.Address + (TILT_DMX_OFFSET)]) / 65535.0 * (TILT_RANGE) - (TILT_RANGE/2), 3);
+                                if (PAN_INVERT)
+                                    pan = -pan;
+
+                                if (TILT_INVERT)
+                                    tilt = -tilt;
+
+                                spot.Pan = pan;
+                                spot.Tilt = tilt;
                             }
                         }
 
@@ -981,6 +999,43 @@ namespace MidiApp
             }
 
         }
+
+        void informClients()
+        {
+            System.IO.MemoryStream stream = new System.IO.MemoryStream();
+            BinaryFormatter serializer = new BinaryFormatter();
+            serializer.Serialize(stream, m_spots);
+            byte[] buffer = new byte[stream.Length + 3];
+            buffer[0] = 2; // Position Update
+            buffer[1] = (byte)(stream.Length / 256);
+            buffer[2] = (byte)(stream.Length & 0xFF);
+            stream.ToArray();
+
+            Array.Copy(stream.ToArray(), 0, buffer, 3, stream.Length);
+
+            for(int c = 0; c<clientHandlers.Length; c++)
+            {
+                ClientHandler ch = clientHandlers[c];
+
+                if (ch != null)
+                {
+                    try
+                    {
+                        Socket client = ch.getClient();
+
+                        if (client.Connected)
+                            client.Send(buffer, (int)stream.Length + 3, SocketFlags.None);
+                    }
+                    catch (Exception w)
+                    {
+                        ch.shutdown();
+                    }
+                }
+
+            }
+
+        }
+
         void ArtNetListner()
         {
 
@@ -1320,13 +1375,27 @@ namespace MidiApp
         {
             ArtNetSequence++;
 
-            m_TXsocket.Send(new ArtNetDmxPacket
+            if (m_TXsocket.EnableBroadcast)
             {
-                Sequence = ArtNetSequence,
-                Physical = 1,
-                Universe = (short)ARTNET_TXUniverse,
-                DmxData = packet
-            });
+                m_TXsocket.Send(new ArtNetDmxPacket
+                {
+                    Sequence = ArtNetSequence,
+                    Physical = 1,
+                    Universe = (short)ARTNET_TXUniverse,
+                    DmxData = packet
+                });
+            }
+            else
+            {
+                RdmEndPoint address = new RdmEndPoint(ARTNET_TXIPAddress);
+                m_TXsocket.Send(new ArtNetDmxPacket
+                {
+                    Sequence = ArtNetSequence,
+                    Physical = 1,
+                    Universe = (short)ARTNET_TXUniverse,
+                    DmxData = packet
+                }, address);
+            }
             ArtNetactivity(2);
         }
 
@@ -1336,13 +1405,22 @@ namespace MidiApp
 
             foreach (Follow_Spot spot in m_spots)
             {
-                int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0), 0);
-                int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0), 0);
+                double pan = spot.Pan;
+                double tilt = spot.Tilt;
 
-                packet[spot.Address - 1] = (byte)(PanDMX / 256);
-                packet[spot.Address] = (byte)(PanDMX % 256);
-                packet[spot.Address + 1] = (byte)(TiltDMX / 256);
-                packet[spot.Address + 2] = (byte)(TiltDMX % 256);
+                if (PAN_INVERT)
+                    pan = -pan;
+
+                if (TILT_INVERT)
+                    tilt = -tilt;
+
+                int PanDMX = (int)Math.Round((((pan + (PAN_RANGE/2)) / PAN_RANGE) * 65535.0), 0);
+                int TiltDMX = (int)Math.Round((((tilt + (TILT_RANGE/2)) / TILT_RANGE) * 65535.0), 0);
+
+                packet[spot.Address +(PAN_DMX_OFFSET - 1)] = (byte)(PanDMX / 256);
+                packet[spot.Address +(PAN_DMX_OFFSET)] = (byte)(PanDMX % 256);
+                packet[spot.Address + (TILT_DMX_OFFSET - 1)] = (byte)(TiltDMX / 256);
+                packet[spot.Address + (TILT_DMX_OFFSET)] = (byte)(TiltDMX % 256);
             }
 
             updateDMX(packet);
@@ -1361,7 +1439,7 @@ namespace MidiApp
             // running the listener is "host.contoso.com".  
             //            IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
             //            IPAddress ipAddress = MQ_IPAddress;
-            IPEndPoint localEndPoint = new IPEndPoint(ipAddress, 11000);
+            IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, 11000);
 
             // Create a TCP/IP socket.  
             listener = new Socket(ipAddress.AddressFamily,
@@ -1399,6 +1477,7 @@ namespace MidiApp
                     // Start an asynchronous socket to listen for connections.  
                     Console.WriteLine("Waiting for a connection...");
                     Socket client = listener.Accept();
+                    Console.WriteLine("Connected ...");
                     ClientHandler ch = new ClientHandler(client, this);
 
                     ch.start();
@@ -1419,6 +1498,11 @@ namespace MidiApp
         MainWindow mainWindow;
         Thread clientThread;
         int clientID = -1;
+
+        public Socket getClient()
+        {
+            return client;
+        }
 
         public ClientHandler(Socket p_client, MainWindow p_mainWindow)
         {
@@ -1481,36 +1565,88 @@ namespace MidiApp
                             Console.WriteLine("Server Command: " + buffer[0]);
                             break;
                         case 1:
-                            client.Receive(buffer, 1, 1, SocketFlags.None);
-                            clientID = buffer[1]-1;
-                            if (mainWindow.clientHandlers[clientID] != null)
                             {
-                                mainWindow.clientHandlers[clientID].shutdown();
-                            }
-                            mainWindow.clientHandlers[clientID] = this;
+                                client.Receive(buffer, 1, 1, SocketFlags.None);
+                                clientID = buffer[1] - 1;
+                                if (clientID == -1)
+                                {
+                                    for (int i = 0; i < mainWindow.clientHandlers.Length; i++)
+                                    {
+                                        if (mainWindow.clientHandlers[i] == null)
+                                        {
+                                            clientID = i;
+                                            break;
+                                        }
+                                    }
+                                }
 
-                            Console.WriteLine("Server Command: " + buffer[0]);
+                                if (clientID == mainWindow.clientHandlers.Length || clientID==-1)
+                                {
+                                    client.Shutdown(SocketShutdown.Both);
+                                    client.Close();
+                                    return;
+                                }
+
+                                if (mainWindow.clientHandlers[clientID] != null)
+                                {
+                                    mainWindow.clientHandlers[clientID].shutdown();
+                                }
+                                mainWindow.clientHandlers[clientID] = this;
+
+                                Console.WriteLine("Server Command: " + buffer[0]);
+                                String resource = Newtonsoft.Json.JsonConvert.SerializeObject(mainWindow.getAppResource());
+
+                                Encoding.Default.GetBytes(resource);
+
+                                int length = Encoding.Default.GetByteCount(resource);
+                                byte[] op_buffer = new byte[length + 4];
+                                op_buffer[0] = 1; // Server Update
+                                op_buffer[1] = (byte)(length / 256);
+                                op_buffer[2] = (byte)(length & 0xFF);
+                                op_buffer[3] = (byte)clientID;
+
+                                Encoding.Default.GetBytes(resource, 0, resource.Length, op_buffer, 4);
+                                try
+                                {
+                                    if (client.Connected)
+                                        client.Send(op_buffer, length + 4, SocketFlags.None);
+                                }
+                                catch (Exception w)
+                                {
+                                    shutdown();
+                                }
+                            }
                             break;
 
                         case 2:
-                            client.Receive(buffer, 1, 2, SocketFlags.None);
-                            int length = buffer[1] * 256 + buffer[2];
-                            byte[] rcv_buffer = new byte[length];
-                            int recieved = 0;
-                            while (recieved < length)
                             {
-                                recieved += client.Receive(rcv_buffer, recieved, length - recieved, SocketFlags.None);
-                            }
+                                client.Receive(buffer, 1, 2, SocketFlags.None);
+                                int res_length = buffer[1] * 256 + buffer[2];
+                                byte[] rcv_buffer = new byte[res_length];
+                                int recieved = 0;
+                                while (recieved < res_length)
+                                {
+                                    recieved += client.Receive(rcv_buffer, recieved, res_length - recieved, SocketFlags.None);
+                                }
 
-                            BinaryFormatter deserializer = new BinaryFormatter();
-                            deserializer.AssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple;
+                                BinaryFormatter deserializer = new BinaryFormatter();
+                                deserializer.AssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple;
 
-                            dynamic newspots = deserializer.Deserialize(new System.IO.MemoryStream(rcv_buffer, false));
-                            //Console.WriteLine("DMX Update:" + newspots[0]);
-                            for (int i = 0; i < MainWindow.m_spots.Count; i++)
-                            {
-                                MainWindow.m_spots[i].Pan = newspots[i].Pan;
-                                MainWindow.m_spots[i].Tilt = newspots[i].Tilt;
+                                dynamic newspots = deserializer.Deserialize(new System.IO.MemoryStream(rcv_buffer, false));
+                                //Console.WriteLine("DMX Update:" + newspots[0]);
+                                for (int i = 0; i < MainWindow.m_spots.Count; i++)
+                                {
+                                    if (MainWindow.m_spots[i].MouseControlID == clientID)
+                                    {
+                                        MainWindow.m_spots[i].Pan = newspots[i].Pan;
+                                        MainWindow.m_spots[i].Tilt = newspots[i].Tilt;
+
+                                        MainWindow.m_spots[i].Target = newspots[i].Target;
+                                    }
+                                }
+
+                                mainWindow.updateDMX();
+
                             }
                             break;
 
