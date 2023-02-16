@@ -1,27 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
-using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
-using System.Windows.Threading;
 using Haukcode.ArtNet.Packets;
 using Haukcode.ArtNet.Sockets;
 using Haukcode.Sockets;
 using Rug.Osc;
-using Sanford.Multimedia;
 using Sanford.Multimedia.Midi;
-using System.Runtime.Serialization.Formatters.Binary;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Bson;
+using System.IO;
+using ErrorEventArgs = Sanford.Multimedia.ErrorEventArgs;
 
 namespace MidiApp
 {
@@ -32,65 +28,56 @@ namespace MidiApp
     public partial class MainWindow : AdonisUI.Controls.AdonisWindow
     {
 
-#if NDEBUG
+#if DEBUG
         //static string MIDI_DEVICE_NAME = "X-TOUCH";
         //        static string MIDI_DEVICE_NAME = "Launchpad Pro";
-        static string MIDI_DEVICE_NAME = "LoopBe";
+        static string MIDI_DEVICE_NAME = "loopMIDI";
 #else
-        static string MIDI_DEVICE_NAME = "X-TOUCH";
+        static string MIDI_DEVICE_NAME = "loopMIDI";
 #endif
+        private readonly string resourceFileName = @"Resources\resources.json";
+        readonly string[] attributeNames = {"Dimmer", "Dim Mode", "Shutter", "Iris", "Pan", "Tilt", "Col1", "Col2",
+                                            "Gobo1", "Gobo2", "Rotate1", "Rotate2", "Focus", "Zoom", "FX1 Prism",
+                                            "FX2", "Cyan/Red", "Magenta/Green", "Yellow/Blue", "Col Mix / White", "Cont1 (Lamp on/off)", "Cont2 (Reset)", "Macro", "Macro2",
+                                            "CTC", "CTO", "Col3 Speed", "Col4 (Amber)", "Gobo3", "Gobo4", "Gobo Rotate 3", "Prism Rot",
+                                            "Frost1", "Frost2", "FX3", "FX4", "FX5", "FX6", "FX7", "FX8",
+                                            "Cont3 (Beamm Speed)", "Cont4", "Cont5", "Cont6", "Cont7", "Cont8",
+                                            "Pos1", "Pos2", "Pos3", "Pos4", "Pos5","Pos6 (Position Speed)",
+                                            "Frame 1 (Top left)", "Frame 2 (Top left)", "Frame 3 (Bottom left)", "Frame 4 (Bottom left)", "Frame 5 (Top Right)", "Frame 6 (Top Right)", "Frame 7 (Bottom Right)", "Frame 8 (Bottom Right)",
+                                            "Lime/UV", "Col5", "Col6", "Reserved"};
 
-        double TILT_RANGE = 270.0;
-        bool TILT_INVERT = false;
 
-        double PAN_RANGE = 540.0;
-        bool PAN_INVERT = true;
+        public static List<FollowSpot> FollowSpots { get; } = new();
+        public static dynamic appResources;
 
-        int PAN_DMX_OFFSET = 22;
-        int TILT_DMX_OFFSET = 24;
+        private OscSender sender;
+        private OscReceiver receiver;
 
-        public OscSender sender;
-        public OscReceiver receiver;
+        private const int SysExBufferSize = 128;
 
-        public const int SysExBufferSize = 128;
+        private InputDevice inDevice = null;
+        private OutputDevice outDevice = null;
 
-        public InputDevice inDevice = null;
-        public OutputDevice outDevice = null;
+        private Thread m_Thread = null;
+        private Thread activity_Thread = null;
+        private Thread fsActivity_Thread = null;
+        private Thread artNetActivity_Thread = null;
+        private ArtNetSocket m_socket = null;
+        private ArtNetSocket m_TXsocket = null;
 
-        public Thread m_Thread = null;
-        public Thread activity_Thread = null;
-        public Thread FSactivity_Thread = null;
-        public Thread ArtNetactivity_Thread = null;
-        public ArtNetSocket m_socket = null;
-        public ArtNetSocket m_TXsocket = null;
-        public static List<Follow_Spot> m_spots = new List<Follow_Spot>();
+        private Thread mqConnection_Thread = null;
 
-        public Thread mqConnection_Thread = null;
+        private Thread m_ResourceLoader_Thread = null;
 
-        public string resourceFileName = @"resources.json";
-        public static dynamic AppResources;
-        public Thread m_ResourceLoader_Thread = null;
+        private Dictionary<string, int> attributes = new Dictionary<string, int>();
 
-        Dictionary<string, int> attributes = new Dictionary<string, int>();
+        private int selected_Attribute = 0;
 
-        string[] attributeNames = {"Dimmer", "Dim Mode", "Shutter", "Iris", "Pan", "Tilt", "Col1", "Col2",
-                                    "Gobo1", "Gobo2", "Rotate1", "Rotate2", "Focus", "Zoom", "FX1 Prism",
-                                    "FX2", "Cyan/Red", "Magenta/Green", "Yellow/Blue", "Col Mix / White", "Cont1 (Lamp on/off)", "Cont2 (Reset)", "Macro", "Macro2",
-                                    "CTC", "CTO", "Col3 Speed", "Col4 (Amber)", "Gobo3", "Gobo4", "Gobo Rotate 3", "Prism Rot",
-                                    "Frost1", "Frost2", "FX3", "FX4", "FX5", "FX6", "FX7", "FX8",
-                                    "Cont3 (Beamm Speed)", "Cont4", "Cont5", "Cont6", "Cont7", "Cont8",
-                                    "Pos1", "Pos2", "Pos3", "Pos4", "Pos5","Pos6 (Position Speed)",
-                                    "Frame 1 (Top left)", "Frame 2 (Top left)", "Frame 3 (Bottom left)", "Frame 4 (Bottom left)", "Frame 5 (Top Right)", "Frame 6 (Top Right)", "Frame 7 (Bottom Right)", "Frame 8 (Bottom Right)",
-                                    "Lime/UV", "Col5", "Col6", "Reserved"
-                };
+        private SynchronizationContext context;
 
-        int selected_Attribute = 0;
-
-        SynchronizationContext context;
-
-        bool[] buttons;
-        float[] faders;
-        bool[] encoderState;
+        private bool[] buttons;
+        private float[] faders;
+        private bool[] encoderState;
 
         public int selectedPlayback = 0;
 
@@ -122,20 +109,20 @@ namespace MidiApp
                 attributes.Add(attributeNames[i], i);
             }
 
-            AppResources = getAppResource();
-            m_ResourceLoader_Thread = new Thread(new ThreadStart(resourceLoaderLoop));
+            appResources = GetAppResource();
+            m_ResourceLoader_Thread = new Thread(new ThreadStart(ResourceLoaderLoop));
             m_ResourceLoader_Thread.IsBackground = true;
             m_ResourceLoader_Thread.Start();
 
             try
             {
-                MQ_IPAddress = IPAddress.Parse((string)AppResources.Network.MAgicQIP);
-                ARTNET_RXIPAddress = IPAddress.Parse((string)AppResources.Network.ArtNet.RXIP);
-                ARTNET_RXSubNetMask = IPAddress.Parse((string)AppResources.Network.ArtNet.RXSubNetMask);
-                ARTNET_TXIPAddress = IPAddress.Parse((string)AppResources.Network.ArtNet.TXIP);
-                ARTNET_TXSubNetMask = IPAddress.Parse((string)AppResources.Network.ArtNet.TXSubNetMask);
-                ARTNET_TXUseBroadcast = (bool)AppResources.Network.ArtNet.Broadcast;
-                ARTNET_TXUniverse = (int)AppResources.Network.ArtNet.Universe;
+                MQ_IPAddress = IPAddress.Parse((string)appResources.Network.MAgicQIP);
+                ARTNET_RXIPAddress = IPAddress.Parse((string)appResources.Network.ArtNet.RXIP);
+                ARTNET_RXSubNetMask = IPAddress.Parse((string)appResources.Network.ArtNet.RXSubNetMask);
+                ARTNET_TXIPAddress = IPAddress.Parse((string)appResources.Network.ArtNet.TXIP);
+                ARTNET_TXSubNetMask = IPAddress.Parse((string)appResources.Network.ArtNet.TXSubNetMask);
+                ARTNET_TXUseBroadcast = (bool)appResources.Network.ArtNet.Broadcast;
+                ARTNET_TXUniverse = (int)appResources.Network.ArtNet.Universe;
             }
             catch (Exception e)
             {
@@ -152,20 +139,20 @@ namespace MidiApp
         bool ARTNET_TXUseBroadcast = true;
         int ARTNET_TXUniverse = 0;
 
-        public void saveAppResource()
+        public void SaveAppResource()
         {
             string res = System.IO.File.ReadAllText(resourceFileName);
             System.IO.File.WriteAllText(resourceFileName + ".bak", res);
 
-            System.IO.File.WriteAllText(resourceFileName, Newtonsoft.Json.JsonConvert.SerializeObject(AppResources));
+            System.IO.File.WriteAllText(resourceFileName, JsonConvert.SerializeObject(appResources));
         }
 
-        public dynamic getAppResource()
+        public dynamic GetAppResource()
         {
             try
             {
                 var res = System.IO.File.ReadAllText(resourceFileName);
-                return Newtonsoft.Json.JsonConvert.DeserializeObject(res);
+                return JsonConvert.DeserializeObject(res);
             }
             catch (System.IO.FileNotFoundException)
             {
@@ -174,7 +161,8 @@ namespace MidiApp
                 return null;
             }
         }
-        public void resourceLoaderLoop()
+
+        public void ResourceLoaderLoop()
         {
             DateTime time = System.IO.File.GetLastWriteTime(resourceFileName);
 
@@ -186,7 +174,7 @@ namespace MidiApp
 
                     if (latestTime > time)
                     {
-                        AppResources = getAppResource();
+                        appResources = GetAppResource();
                         time = latestTime;
                     }
                     else
@@ -258,16 +246,13 @@ namespace MidiApp
                 try
                 {
                     Thread.Sleep(100);
-                    if (context != null)
-                    {
-                        context.Post(delegate (object dummy)
+                    context?.Post(delegate (object dummy)
                         {
                             if (activityTimer.ElapsedMilliseconds > 200)
                             {
                                 ActivityLED.Fill = WhiteFill;
                             }
                         }, null);
-                    }
                 }
                 catch (ThreadInterruptedException)
                 {
@@ -277,16 +262,13 @@ namespace MidiApp
             }
         }
 
-        public void activity(int type)
+        public void Activity(int type)
         {
             activityTimer.Restart();
-            if (context != null)
-            {
-                context.Post(delegate (object dummy)
+            context?.Post(delegate (object dummy)
                 {
                     ActivityLED.Fill = GreenFill;
                 }, null);
-            }
         }
 
 
@@ -363,7 +345,7 @@ namespace MidiApp
 
         Stopwatch FSactivityTimer = Stopwatch.StartNew();
 
-        double[] clientHues = { 0, 120, 240, 300, 60};
+        double[] clientHues = { 0, 120, 240, 300, 60 };
 
         SolidColorBrush[][] clientColours = new SolidColorBrush[5][];
 
@@ -439,7 +421,7 @@ namespace MidiApp
             {
                 context.Post(delegate (object dummy)
                 {
-                    if (clientID>=0)
+                    if (clientID >= 0)
                         clientButtons[clientID].Background = clientColours[clientID][2];
                 }, null);
             }
@@ -456,16 +438,13 @@ namespace MidiApp
                 try
                 {
                     Thread.Sleep(100);
-                    if (context != null)
-                    {
-                        context.Post(delegate (object dummy)
+                    context?.Post(delegate (object dummy)
                         {
                             if (ArtNetactivityTimer.ElapsedMilliseconds > 200)
                             {
                                 ArtNetActivityLED.Fill = WhiteFill;
                             }
                         }, null);
-                    }
                 }
                 catch (ThreadInterruptedException)
                 {
@@ -478,17 +457,15 @@ namespace MidiApp
         public void ArtNetactivity(int type)
         {
             ArtNetactivityTimer.Restart();
-            if (context != null)
-            {
-                context.Post(delegate (object dummy)
+            context?.Post(delegate (object dummy)
                 {
                     ArtNetActivityLED.Fill = GreenFill;
                 }, null);
-            }
         }
 
         Stopwatch connectionTimer = Stopwatch.StartNew();
-        void mqConnection_Monitor()
+
+        void MqConnection_Monitor()
         {
 
             while (true)
@@ -496,16 +473,13 @@ namespace MidiApp
                 try
                 {
                     Thread.Sleep(500);
-                    if (context != null)
-                    {
-                        context.Post(delegate (object dummy)
+                    context?.Post(delegate (object dummy)
                         {
                             if (connectionTimer.ElapsedMilliseconds > 1000)
                             {
                                 ConnectionLED.Fill = WhiteFill;
                             }
                         }, null);
-                    }
                 }
                 catch (ThreadInterruptedException)
                 {
@@ -515,16 +489,13 @@ namespace MidiApp
             }
         }
 
-        public void activityMQ(int type)
+        public void ActivityMQ(int type)
         {
             connectionTimer.Restart();
-            if (context != null)
-            {
-                context.Post(delegate (object dummy)
+            context?.Post(delegate (object dummy)
                 {
                     ConnectionLED.Fill = GreenFill;
                 }, null);
-            }
         }
 
         void ListenLoop()
@@ -543,8 +514,8 @@ namespace MidiApp
                         justRecieved = true;
 
                         Console.WriteLine("OSC Packet: " + pkt.ToString());
-                        activity(1);
-                        activityMQ(1);
+                        Activity(1);
+                        ActivityMQ(1);
 
                         //  /exec/1/1, 0f
                         //  /exec/1/57, 0f
@@ -568,11 +539,12 @@ namespace MidiApp
                             {
                                 buttons[buttonId] = value;
 
-                                ChannelMessageBuilder builder = new ChannelMessageBuilder();
-
-                                builder.Command = ChannelCommand.NoteOn;
-                                builder.Data1 = (execNum + 16);
-                                builder.Data2 = buttons[buttonId] ? 1 : 0;
+                                ChannelMessageBuilder builder = new()
+                                {
+                                    Command = ChannelCommand.NoteOn,
+                                    Data1 = (execNum + 16),
+                                    Data2 = buttons[buttonId] ? 1 : 0
+                                };
                                 builder.Build();
                                 outDevice.Send(builder.Result);
                                 // Console.WriteLine("SetButton: " + (buttonId).ToString() + " " + buttons[buttonId]);
@@ -629,7 +601,7 @@ namespace MidiApp
                             }
 
                         }
-                        // fspot/start/<mouse1 spots list>#<mouse2 spots list>@<viewID>
+                        // fspot/start/<mouse1 spots list>$message+<mouse2 spots list>$message@<viewID>
                         else if (parts[1].Equals("fspot"))
                         {
                             if (parts.Length >= 2)
@@ -645,17 +617,17 @@ namespace MidiApp
                                         int viewpos = ids.LastIndexOf('@');
                                         if (viewpos > 0)
                                         {
-                                            viewID = Int32.Parse(ids.Substring(viewpos + 1));
-                                            ids = ids.Substring(0, viewpos);
+                                            viewID = int.Parse(ids.Substring(viewpos + 1));
+                                            ids = ids[..viewpos];
                                         }
                                         else
                                         {
                                             viewpos = ids.Length;
                                         }
 
-                                        ids = ids.Substring(ids.LastIndexOf('/') + 1);
+                                        ids = ids[(ids.LastIndexOf('/') + 1)..];
 
-                                        foreach (Follow_Spot spot in m_spots)
+                                        foreach (FollowSpot spot in FollowSpots)
                                         {
                                             spot.MouseControlID = -1;
                                         }
@@ -664,74 +636,110 @@ namespace MidiApp
 
                                         foreach (string s in ids.Split('+'))
                                         {
-                                            foreach (string idspot in s.Split(','))
+                                            string spots = s;
+                                            string message = "";
+                                            int message_Pos = spots.IndexOf("$");
+                                            if (message_Pos != -1)
                                             {
+                                                message = spots.Substring(message_Pos + 1);
+                                                spots = spots.Substring(0, message_Pos);
+                                            }
+
+                                            foreach (string i in spots.Split(','))
+                                            {
+                                                string idspot = i;
+                                                int zoom_Pos = idspot.IndexOf("z");
+                                                if (zoom_Pos != -1)
+                                                {
+                                                    //message = idspot.Substring(zoom_Pos + 1);
+                                                    idspot = idspot.Substring(0, zoom_Pos);
+                                                }
+
                                                 int headId = Int32.Parse(idspot);
-                                                foreach (Follow_Spot spot in m_spots)
+                                                foreach (FollowSpot spot in FollowSpots)
                                                 {
                                                     if (spot.Head == headId)
+                                                    {
                                                         spot.MouseControlID = mouse;
+                                                        spot.MouseControlID = mouse;
+                                                    }
                                                 }
                                             }
+                                            SendClientMessage(mouse, message, spots, 3);
 
                                             mouse++;
                                         }
-
                                     }
-
-                                    //context.Post(delegate (object dummy)
-                                    //{
-                                    //    if (m_threeDWindow == null)
-                                    //    {
-                                    //        m_threeDWindow = new ThreeD();
-                                    //        m_threeDWindow.grab();
-                                    //    }
-                                    //    else
-                                    //    {
-                                    //        m_threeDWindow.Show();
-                                    //    }
-
-                                    //    if (viewID > 0)
-                                    //    {
-                                    //        m_threeDWindow.setCameraView(viewID - 1);
-                                    //    }
-
-                                    //    if (spotsOnMouseControl())
-                                    //    {
-                                    //        m_threeDWindow.Macro_moveSpot(0);
-                                    //        m_threeDWindow.setActive(true);
-                                    //    }
-                                    //    else
-                                    //    {
-                                    //        m_threeDWindow.setActive(false);
-                                    //    }
-                                    //}, null);
-
                                 }
                                 else if (parts[2] == "stop")
                                 {
-                                    foreach (Follow_Spot spot in m_spots)
+                                    foreach (FollowSpot spot in FollowSpots)
                                     {
                                         spot.MouseControlID = -1;
                                     }
 
-                                    //if (m_threeDWindow != null)
-                                    //{
-                                    //    context.Post(delegate (object dummy)
-                                    //    {
-                                    //        m_threeDWindow.setActive(false);
-                                    //    }, null);
-                                    //}
+                                    SendClientMessage(0, "", "", 3);
+                                    SendClientMessage(1, "", "", 3);
+                                    SendClientMessage(2, "", "", 3);
+                                }
+                                // fspot/message/message+message
+                                // fspot/message
+                                else if (parts[2] == "message")
+                                {
+
+                                    string ids = msg.ToString();
+                                    ids = ids.Replace("\"", "");
+
+                                    if (!ids.EndsWith("/"))
+                                    {
+                                        ids = ids.Substring(ids.LastIndexOf('/') + 1);
+                                        if (parts.Length == 3)
+                                        {
+                                            ids = "";
+                                        }
+                                        int mouse = 0;
+
+                                        foreach (string message in ids.Split('+'))
+                                        {
+                                            if (message != "$")
+                                                SendClientMessage(mouse, message, "0", 3);
+                                        }
+                                    }
                                 }
                             }
 
                         }
+                        else if (parts[1].Equals("sel"))
+                        {
+                            if (parts.Length >= 2)
+                            {
+                                if (Int32.TryParse(parts[2], out int selected_pb))
+                                {
+                                    ChannelMessageBuilder builder = new ChannelMessageBuilder();
+                                    for (int j = 0; j < 9; j++)
+                                    {
+                                        buttons[j + 40 - 16] = false;
+                                    }
+                                    buttons[selected_pb + 39 - 16] = true;
+                                    selectedPlayback = selected_pb;
+                                    Console.WriteLine("selectedPlayback: " + selectedPlayback);
+                                    builder.Command = ChannelCommand.NoteOn;
+                                    for (int j = 0; j < 9; j++)
+                                    {
+                                        builder.Data1 = j + 40;
+                                        builder.Data2 = buttons[j + 40 - 16] ? 2 : 0;
+                                        builder.Build();
+                                        outDevice.Send(builder.Result);
+                                    }
+                                }
+                            }
+                        }
 
                     }
                 }
-                catch (System.Exception)
+                catch (System.Exception e)
                 {
-
+                    Console.WriteLine("Exception Thrown" + e);
                 }
 
                 try
@@ -745,6 +753,81 @@ namespace MidiApp
                 }
             }
         }
+
+        public void SendClientMessage(int clientID, string message, string spots, int timeout)
+        {
+            ClientMesage msg = new();
+
+            msg.clientID = clientID;
+            msg.message = WebUtility.UrlDecode(message);
+            msg.spots = new int[spots.Split(',').Length];
+            msg.zooms = new int[msg.spots.Length];
+            msg.HeightOffsets = new double[msg.spots.Length];
+            msg.timeout = timeout;
+
+            int p = 0;
+            foreach (string s in spots.Split(','))
+            {
+                if (s.Length > 0)
+                {
+                    string idspot = s;
+                    string num = "";
+                    int zoom_Pos = idspot.IndexOf("z");
+                    int ho_Pos = 0;
+                    if (zoom_Pos != -1)
+                    {
+                        num = idspot[(zoom_Pos + 1)..];
+                        ho_Pos = num.IndexOf("h");
+                        if (ho_Pos != -1)
+                        {
+                            msg.HeightOffsets[p] = double.Parse(num.Substring(ho_Pos + 1));
+
+                            num = num[..ho_Pos];
+                        }
+                        msg.zooms[p] = int.Parse(num);
+                        idspot = idspot[..zoom_Pos];
+                    }
+
+                    msg.spots[p++] = int.Parse(idspot);
+                }
+            }
+            if (p == 0)
+                msg.spots = null;
+
+            JsonSerializer clientMessageSerializer = new();
+            using MemoryStream clientMessageStream = new();
+            using BsonDataWriter clientMessageWriter = new(clientMessageStream);
+            clientMessageSerializer.Serialize(clientMessageWriter, msg);
+            byte[] buffer = new byte[clientMessageStream.Length + 3];
+            buffer[0] = (byte)MessageType.Message; // Message
+            buffer[1] = (byte)(clientMessageStream.Length / 256);
+            buffer[2] = (byte)(clientMessageStream.Length & 0xFF);
+            // clientMessageStream.ToArray();
+
+            Array.Copy(clientMessageStream.ToArray(), 0, buffer, 3, clientMessageStream.Length);
+
+            if (clientID < clientHandlers.Length)
+            {
+                ClientHandler ch = clientHandlers[clientID];
+
+                if (ch != null)
+                {
+                    try
+                    {
+                        Socket client = ch.Client;
+
+                        if (client.Connected)
+                            client.Send(buffer, (int)clientMessageStream.Length + 3, SocketFlags.None);
+                    }
+                    catch
+                    {
+                        ch.Shutdown();
+                    }
+                }
+            }
+
+        }
+
 
         public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
         {
@@ -775,54 +858,52 @@ namespace MidiApp
                 RedFill = new RadialGradientBrush(Color.FromRgb(0xFF, 0x1D, 0x1D), Color.FromRgb(0xE0, 0x00, 0x00));
                 WhiteFill = new RadialGradientBrush(Color.FromRgb(0x60, 0x80, 0x60), Color.FromRgb(0x20, 0x60, 0x20));
 
-
-
-                if (FSactivity_Thread == null)
+                if (fsActivity_Thread == null)
                 {
-                    FSactivity_Thread = new Thread(new ThreadStart(FSActivityMonitor));
-                    FSactivity_Thread.IsBackground = true;
-                    FSactivity_Thread.Start();
+                    fsActivity_Thread = new(new ThreadStart(FSActivityMonitor));
+                    fsActivity_Thread.IsBackground = true;
+                    fsActivity_Thread.Start();
                 }
 
                 if (activity_Thread == null)
                 {
-                    activity_Thread = new Thread(new ThreadStart(ActivityMonitor));
+                    activity_Thread = new(new ThreadStart(ActivityMonitor));
                     activity_Thread.IsBackground = true;
                     activity_Thread.Start();
                 }
 
-                if (ArtNetactivity_Thread == null)
+                if (artNetActivity_Thread == null)
                 {
-                    ArtNetactivity_Thread = new Thread(new ThreadStart(ArtNetActivityMonitor));
-                    ArtNetactivity_Thread.IsBackground = true;
-                    ArtNetactivity_Thread.Start();
+                    artNetActivity_Thread = new(new ThreadStart(ArtNetActivityMonitor));
+                    artNetActivity_Thread.IsBackground = true;
+                    artNetActivity_Thread.Start();
                 }
 
                 if (mqConnection_Thread == null)
                 {
-                    mqConnection_Thread = new Thread(new ThreadStart(mqConnection_Monitor));
+                    mqConnection_Thread = new(new ThreadStart(MqConnection_Monitor));
                     mqConnection_Thread.IsBackground = true;
                     mqConnection_Thread.Start();
                 }
+
+                setupMQListener();
 
                 inDevice.ChannelMessageReceived += HandleChannelMessageReceived;
                 inDevice.SysCommonMessageReceived += HandleSysCommonMessageReceived;
                 inDevice.SysExMessageReceived += HandleSysExMessageReceived;
                 inDevice.SysRealtimeMessageReceived += HandleSysRealtimeMessageReceived;
-                inDevice.Error += new EventHandler<ErrorEventArgs>(inDevice_Error);
+                inDevice.Error += new EventHandler<Sanford.Multimedia.ErrorEventArgs>(inDevice_Error);
 
                 if (!MIDI_DEVICE_NAME.Contains("Loop"))
                     inDevice.StartRecording();
 
-                ChannelMessageBuilder builder = new ChannelMessageBuilder();
+                ChannelMessageBuilder builder = new();
 
                 builder.Command = ChannelCommand.Controller;
                 builder.Data1 = 127;
                 builder.Data2 = 0;
                 builder.Build();
                 outDevice.Send(builder.Result);
-
-
 
                 builder.Command = ChannelCommand.ProgramChange;
                 builder.MidiChannel = 1;
@@ -866,35 +947,37 @@ namespace MidiApp
                 ipInputMQ.Content = MQ_IPAddress;
                 ipInputTX.Content = ARTNET_TXIPAddress;
 
-                setupMQListener();
-                m_Thread = new Thread(new ThreadStart(ListenLoop));
+                m_Thread = new(new ThreadStart(ListenLoop));
                 m_Thread.IsBackground = true;
                 m_Thread.Start();
 
                 StartListening(MQ_IPAddress);
 
-                foreach (dynamic v in AppResources.Lights)
+                foreach (dynamic v in appResources.Lights)
                 {
-                    Follow_Spot spot = new Follow_Spot();
-                    spot.Head = v.Head;
-                    spot.Universe = v.Universe;
-                    spot.Address = v.Address;
-                    spot.MouseControlID = -1;
+                    FollowSpot spot = new()
+                    {
+                        Head = v.Head,
+                        Universe = v.Universe,
+                        Address = v.Address,
+                        MouseControlID = -1
+                    };
+                    spot.SetFixtureType((string)(v.Fixture.Value));
 
                     Point3D p;
                     switch ((int)v.Bar)
                     {
-                        case 0: p = new Point3D((double)v.XOffset, 0.0, (double)AppResources.Bar0Height + 0.1); break;
-                        case -1: p = new Point3D((double)v.XOffset, (double)AppResources.BarAudienceOffset, (double)AppResources.BarAudienceHeight + 0.1); break;
-                        case 1: p = new Point3D((double)v.XOffset, (double)AppResources.Bar1Offset, (double)AppResources.Bar1Height + 0.1); break;
-                        case 2: p = new Point3D((double)v.XOffset, (double)AppResources.Bar2Offset, (double)AppResources.Bar2Height + 0.1); break;
-                        default: p = new Point3D((double)v.XOffset, (double)AppResources.Bar3Offset, (double)AppResources.Bar3Height + 0.1); break;
+                        case 0: p = new Point3D((double)v.XOffset, 0.0, (double)appResources.Bar0Height + 0.1); break;
+                        case -1: p = new Point3D((double)v.XOffset, (double)appResources.BarAudienceOffset, (double)appResources.BarAudienceHeight + 0.1); break;
+                        case 1: p = new Point3D((double)v.XOffset, (double)appResources.Bar1Offset, (double)appResources.Bar1Height + 0.1); break;
+                        case 2: p = new Point3D((double)v.XOffset, (double)appResources.Bar2Offset, (double)appResources.Bar2Height + 0.1); break;
+                        default: p = new Point3D((double)v.XOffset, (double)appResources.Bar3Offset, (double)appResources.Bar3Height + 0.1); break;
                     }
                     spot.Location = p;
 
-                    m_spots.Add(spot);
+                    FollowSpots.Add(spot);
                 }
-                FollwSpot_dataGrid.ItemsSource = m_spots;
+                FollwSpot_dataGrid.ItemsSource = FollowSpots;
 
                 ArtNetListner();
 
@@ -933,12 +1016,11 @@ namespace MidiApp
             }
         }
 
-        public bool spotsOnMouseControl()
+        public static bool SpotsOnMouseControl()
         {
-            int i = 0;
-            for (i = 0; i < MainWindow.m_spots.Count; i++)
+            for (int i = 0; i < FollowSpots.Count; i++)
             {
-                if (MainWindow.m_spots[i].MouseControlID >= 0)
+                if (FollowSpots[i].MouseControlID >= 0)
                 {
                     return true;
                 }
@@ -950,7 +1032,7 @@ namespace MidiApp
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
             //Console.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
-            if (!spotsOnMouseControl())
+            if (!SpotsOnMouseControl())
             {
                 ArtNetactivity(1);
 
@@ -959,16 +1041,17 @@ namespace MidiApp
                     ArtNetDmxPacket dmx = (ArtNetDmxPacket)e.Packet;
                     context.Post(delegate (object dummy)
                     {
-                        foreach (Follow_Spot spot in m_spots)
+                        foreach (FollowSpot spot in FollowSpots)
                         {
                             if (dmx.Universe == spot.Universe)
                             {
-                                double pan = Math.Round(((dmx.DmxData[spot.Address + (PAN_DMX_OFFSET - 1)] * 256) + dmx.DmxData[spot.Address + (PAN_DMX_OFFSET)]) / 65535.0 * PAN_RANGE - (PAN_RANGE / 2), 3);
-                                double tilt = Math.Round(((dmx.DmxData[spot.Address + (TILT_DMX_OFFSET - 1)] * 256) + dmx.DmxData[spot.Address + (TILT_DMX_OFFSET)]) / 65535.0 * (TILT_RANGE) - (TILT_RANGE/2), 3);
-                                if (PAN_INVERT)
+                                double pan = Math.Round(((dmx.DmxData[spot.Address + (spot.FixtureType.PanDMX_BASE - 2)] * 256) + dmx.DmxData[spot.Address + (spot.FixtureType.PanDMX_BASE - 1)]) / 65535.0 * spot.FixtureType.PanRange - (spot.FixtureType.PanRange / 2), 3);
+                                double tilt = Math.Round(((dmx.DmxData[spot.Address + (spot.FixtureType.TiltDMX_BASE - 2)] * 256) + dmx.DmxData[spot.Address + (spot.FixtureType.TiltDMX_BASE - 1)]) / 65535.0 * (spot.FixtureType.TiltRange) - (spot.FixtureType.TiltRange / 2), 3);
+
+                                if (spot.FixtureType.PanInvert)
                                     pan = -pan;
 
-                                if (TILT_INVERT)
+                                if (spot.FixtureType.TiltInvert)
                                     tilt = -tilt;
 
                                 spot.Pan = pan;
@@ -993,27 +1076,30 @@ namespace MidiApp
 
                     }, null);
 
-                    if ((spotsOnMouseControl()) && ((dmx.Universe != (short)ARTNET_TXUniverse)))
-                        updateDMX(dmx.DmxData);
+                    if ((SpotsOnMouseControl()) && ((dmx.Universe != (short)ARTNET_TXUniverse)))
+                    {
+                        updateDMX(dmx.DmxData, (byte)(dmx.Universe - ARTNET_TXUniverse));
+                    }
                 }
             }
 
         }
 
-        void informClients()
+        void InformClients()
         {
-            System.IO.MemoryStream stream = new System.IO.MemoryStream();
-            BinaryFormatter serializer = new BinaryFormatter();
-            serializer.Serialize(stream, m_spots);
-            byte[] buffer = new byte[stream.Length + 3];
-            buffer[0] = 2; // Position Update
-            buffer[1] = (byte)(stream.Length / 256);
-            buffer[2] = (byte)(stream.Length & 0xFF);
-            stream.ToArray();
+            JsonSerializer clientMessageSerializer = new();
+            using MemoryStream clientMessageStream = new();
+            using BsonDataWriter clientMessageWriter = new(clientMessageStream);
+            clientMessageSerializer.Serialize(clientMessageWriter, FollowSpots);
+            byte[] buffer = new byte[clientMessageStream.Length + 3];
+            buffer[0] = (byte)MessageType.SpotUpdate; // Position Update
+            buffer[1] = (byte)(clientMessageStream.Length / 256);
+            buffer[2] = (byte)(clientMessageStream.Length & 0xFF);
+            //stream.ToArray();
 
-            Array.Copy(stream.ToArray(), 0, buffer, 3, stream.Length);
+            Array.Copy(clientMessageStream.ToArray(), 0, buffer, 3, clientMessageStream.Length);
 
-            for(int c = 0; c<clientHandlers.Length; c++)
+            for (int c = 0; c < clientHandlers.Length; c++)
             {
                 ClientHandler ch = clientHandlers[c];
 
@@ -1021,14 +1107,14 @@ namespace MidiApp
                 {
                     try
                     {
-                        Socket client = ch.getClient();
+                        Socket client = ch.Client;
 
                         if (client.Connected)
-                            client.Send(buffer, (int)stream.Length + 3, SocketFlags.None);
+                            client.Send(buffer, (int)clientMessageStream.Length + 3, SocketFlags.None);
                     }
-                    catch (Exception w)
+                    catch
                     {
-                        ch.shutdown();
+                        ch.Shutdown();
                     }
                 }
 
@@ -1088,7 +1174,7 @@ namespace MidiApp
         private void HandleChannelMessageReceived(object source, ChannelMessageEventArgs e)
         {
 
-            activity(0);
+            Activity(0);
             Console.WriteLine("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
             if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 < 10))
             {
@@ -1322,7 +1408,7 @@ namespace MidiApp
             if (m_Thread != null)
             {
                 m_Thread.Abort();
-                m_Thread = new Thread(new ThreadStart(ListenLoop));
+                m_Thread = new(new ThreadStart(ListenLoop));
                 m_Thread.IsBackground = true;
                 m_Thread.Start();
             }
@@ -1371,7 +1457,7 @@ namespace MidiApp
             updateDMX();
         }
 
-        public void updateDMX(byte[] packet)
+        public void updateDMX(byte[] packet, byte universe)
         {
             ArtNetSequence++;
 
@@ -1381,7 +1467,7 @@ namespace MidiApp
                 {
                     Sequence = ArtNetSequence,
                     Physical = 1,
-                    Universe = (short)ARTNET_TXUniverse,
+                    Universe = (short)(ARTNET_TXUniverse + universe - 1),
                     DmxData = packet
                 });
             }
@@ -1392,7 +1478,7 @@ namespace MidiApp
                 {
                     Sequence = ArtNetSequence,
                     Physical = 1,
-                    Universe = (short)ARTNET_TXUniverse,
+                    Universe = (short)(ARTNET_TXUniverse + universe - 1),
                     DmxData = packet
                 }, address);
             }
@@ -1401,31 +1487,44 @@ namespace MidiApp
 
         public void updateDMX()
         {
-            byte[] packet = new byte[512];
+            HashSet<int> universes = new HashSet<int>();
 
-            foreach (Follow_Spot spot in m_spots)
+            foreach (FollowSpot spot in FollowSpots)
             {
-                double pan = spot.Pan;
-                double tilt = spot.Tilt;
-
-                if (PAN_INVERT)
-                    pan = -pan;
-
-                if (TILT_INVERT)
-                    tilt = -tilt;
-
-                int PanDMX = (int)Math.Round((((pan + (PAN_RANGE/2)) / PAN_RANGE) * 65535.0), 0);
-                int TiltDMX = (int)Math.Round((((tilt + (TILT_RANGE/2)) / TILT_RANGE) * 65535.0), 0);
-
-                packet[spot.Address +(PAN_DMX_OFFSET - 1)] = (byte)(PanDMX / 256);
-                packet[spot.Address +(PAN_DMX_OFFSET)] = (byte)(PanDMX % 256);
-                packet[spot.Address + (TILT_DMX_OFFSET - 1)] = (byte)(TiltDMX / 256);
-                packet[spot.Address + (TILT_DMX_OFFSET)] = (byte)(TiltDMX % 256);
+                universes.Add(spot.Universe);
             }
 
-            updateDMX(packet);
-        }
+            foreach (byte universe in universes)
+            {
+                byte[] packet = new byte[512];
 
+                foreach (FollowSpot spot in FollowSpots)
+                {
+                    if (universe == spot.Universe)
+                    {
+                        double pan = spot.Pan;
+                        double tilt = spot.Tilt;
+
+                        if (spot.FixtureType.PanInvert)
+                            pan = -pan;
+
+                        if (spot.FixtureType.TiltInvert)
+                            tilt = -tilt;
+
+                        int PanDMX = (int)Math.Round((((pan + (spot.FixtureType.PanRange / 2)) / spot.FixtureType.PanRange) * 65535.0), 0);
+                        int TiltDMX = (int)Math.Round((((tilt + (spot.FixtureType.TiltRange / 2)) / spot.FixtureType.TiltRange) * 65535.0), 0);
+
+                        packet[spot.Address + (spot.FixtureType.PanDMX_BASE - 2)] = (byte)(PanDMX / 256);
+                        packet[spot.Address + (spot.FixtureType.PanDMX_BASE - 1)] = (byte)(PanDMX % 256);
+                        packet[spot.Address + (spot.FixtureType.TiltDMX_BASE - 2)] = (byte)(TiltDMX / 256);
+                        packet[spot.Address + (spot.FixtureType.TiltDMX_BASE - 1)] = (byte)(TiltDMX % 256);
+                        packet[spot.Address + (spot.FixtureType.ZoomDMX_BASE - 2)] = (byte)(spot.Zoom);
+                    }
+                }
+
+                updateDMX(packet, universe);
+            }
+        }
 
         // Thread signal.  
         public static ManualResetEvent allDone = new ManualResetEvent(false);
@@ -1480,7 +1579,7 @@ namespace MidiApp
                     Console.WriteLine("Connected ...");
                     ClientHandler ch = new ClientHandler(client, this);
 
-                    ch.start();
+                    ch.Start();
                 }
             }
             catch (Exception e)
@@ -1491,177 +1590,14 @@ namespace MidiApp
 
     }
 
-
-    public class ClientHandler
+    [Serializable]
+    public struct ClientMesage
     {
-        Socket client;
-        MainWindow mainWindow;
-        Thread clientThread;
-        int clientID = -1;
-
-        public Socket getClient()
-        {
-            return client;
-        }
-
-        public ClientHandler(Socket p_client, MainWindow p_mainWindow)
-        {
-            client = p_client;
-            mainWindow = p_mainWindow;
-
-            try
-            {
-                if (clientThread == null)
-                {
-                    clientThread = new Thread(new ThreadStart(clientLoop));
-                    clientThread.IsBackground = true;
-                }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.ToString());
-            }
-
-        }
-
-        public void start()
-        {
-            clientThread.Start();
-        }
-
-        public void shutdown()
-        {
-            try
-            {
-                Console.WriteLine($"Client {clientID} shutting down.");
-                if (clientID >= 0)
-                    mainWindow.clientHandlers[clientID] = null;
-
-                client.Shutdown(SocketShutdown.Both);
-                client.Close();
-                Console.WriteLine($"Client {clientID} shut down.");
-            }
-            catch (Exception w)
-            {
-                Console.WriteLine($"Client {clientID} shut down error: {w}");
-            }
-        }
-
-        void clientLoop()
-        {
-            byte[] buffer = new byte[1024];
-
-            try
-            {
-                // Connect to the remote endpoint.  
-                while (true)
-                {
-                    int count = client.Receive(buffer, 1, SocketFlags.None);
-                    mainWindow.FSactivity(clientID);
-
-                    switch (buffer[0])
-                    {
-                        case 0:
-                            Console.WriteLine("Server Command: " + buffer[0]);
-                            break;
-                        case 1:
-                            {
-                                client.Receive(buffer, 1, 1, SocketFlags.None);
-                                clientID = buffer[1] - 1;
-                                if (clientID == -1)
-                                {
-                                    for (int i = 0; i < mainWindow.clientHandlers.Length; i++)
-                                    {
-                                        if (mainWindow.clientHandlers[i] == null)
-                                        {
-                                            clientID = i;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (clientID == mainWindow.clientHandlers.Length || clientID==-1)
-                                {
-                                    client.Shutdown(SocketShutdown.Both);
-                                    client.Close();
-                                    return;
-                                }
-
-                                if (mainWindow.clientHandlers[clientID] != null)
-                                {
-                                    mainWindow.clientHandlers[clientID].shutdown();
-                                }
-                                mainWindow.clientHandlers[clientID] = this;
-
-                                Console.WriteLine("Server Command: " + buffer[0]);
-                                String resource = Newtonsoft.Json.JsonConvert.SerializeObject(mainWindow.getAppResource());
-
-                                Encoding.Default.GetBytes(resource);
-
-                                int length = Encoding.Default.GetByteCount(resource);
-                                byte[] op_buffer = new byte[length + 4];
-                                op_buffer[0] = 1; // Server Update
-                                op_buffer[1] = (byte)(length / 256);
-                                op_buffer[2] = (byte)(length & 0xFF);
-                                op_buffer[3] = (byte)clientID;
-
-                                Encoding.Default.GetBytes(resource, 0, resource.Length, op_buffer, 4);
-                                try
-                                {
-                                    if (client.Connected)
-                                        client.Send(op_buffer, length + 4, SocketFlags.None);
-                                }
-                                catch (Exception w)
-                                {
-                                    shutdown();
-                                }
-                            }
-                            break;
-
-                        case 2:
-                            {
-                                client.Receive(buffer, 1, 2, SocketFlags.None);
-                                int res_length = buffer[1] * 256 + buffer[2];
-                                byte[] rcv_buffer = new byte[res_length];
-                                int recieved = 0;
-                                while (recieved < res_length)
-                                {
-                                    recieved += client.Receive(rcv_buffer, recieved, res_length - recieved, SocketFlags.None);
-                                }
-
-                                BinaryFormatter deserializer = new BinaryFormatter();
-                                deserializer.AssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple;
-
-                                dynamic newspots = deserializer.Deserialize(new System.IO.MemoryStream(rcv_buffer, false));
-                                //Console.WriteLine("DMX Update:" + newspots[0]);
-                                for (int i = 0; i < MainWindow.m_spots.Count; i++)
-                                {
-                                    if (MainWindow.m_spots[i].MouseControlID == clientID)
-                                    {
-                                        MainWindow.m_spots[i].Pan = newspots[i].Pan;
-                                        MainWindow.m_spots[i].Tilt = newspots[i].Tilt;
-
-                                        MainWindow.m_spots[i].Target = newspots[i].Target;
-                                    }
-                                }
-
-                                mainWindow.updateDMX();
-
-                            }
-                            break;
-
-                        default:
-                            Console.WriteLine("Server Command: " + buffer[0]);
-                            break;
-                    }
-
-                }
-            }
-            catch (Exception w)
-            {
-                shutdown();
-            }
-
-        }
+        public int clientID;
+        public string message;
+        public int[] spots;
+        public int[] zooms;
+        public double[] HeightOffsets;
+        public int timeout;
     }
 }

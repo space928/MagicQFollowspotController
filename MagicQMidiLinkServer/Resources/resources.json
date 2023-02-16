@@ -14,9 +14,9 @@
   "BarAudienceOffset": -5.85,
   "Bar1Height": 5.09,
   "Bar1Offset": 3.8,
-  "Bar2Height": 5.86,
+  "Bar2Height": 5.06,
   "Bar2Offset": 5.7,
-  "Bar3Height": 6.14,
+  "Bar3Height": 5.06,
   "Bar3Offset": 8.6,
   "Boxes": [
     {
@@ -27,74 +27,84 @@
   ],
   "Lights": [
     {
-      "Head": 1301,
+      "Head": 201,
+      "Fixture": "ERA300",
       "Universe": 1,
-      "Address": 343,
+      "Address": 1,
       "Bar": -1,
-      "XOffset": -3.5
+      "XOffset": -3.6
     },
     {
-      "Head": 1302,
+      "Head": 202,
+      "Fixture": "MegaPointe",
       "Universe": 1,
-      "Address": 377,
+      "Address": 1,
       "Bar": -1,
-      "XOffset": -1.5
+      "XOffset": 0.0
     },
     {
-      "Head": 1303,
+      "Head": 203,
+      "Fixture": "MegaPointe",
       "Universe": 1,
-      "Address": 411,
+      "Address": 1,
       "Bar": -1,
-      "XOffset": 1.5
+      "XOffset": 3.6
     },
     {
-      "Head": 1304,
+      "Head": 204,
+      "Fixture": "ERA300",
       "Universe": 1,
-      "Address": 479,
-      "Bar": -1,
-      "XOffset": 3.5
-    },
-    {
-      "Head": 1305,
-      "Universe": 1,
-      "Address": 445,
+      "Address": 176,
       "Bar": 1,
-      "XOffset": 0
+      "XOffset": -4.0
     },
     {
-      "Head": 1306,
-      "Universe": 4,
+      "Head": 205,
+      "Fixture": "MegaPointe",
+      "Universe": 1,
+      "Address": 1,
+      "Bar": 1,
+      "XOffset": 4.0
+    },
+    {
+      "Head": 206,
+      "Fixture": "Alpha",
+      "Universe": 1,
       "Address": 1,
       "Bar": 2,
-      "XOffset": -2.5
+      "XOffset": -2
     },
     {
-      "Head": 1307,
-      "Universe": 4,
-      "Address": 50,
+      "Head": 207,
+      "Fixture": "Alpha",
+      "Universe": 1,
+      "Address": 1,
       "Bar": 2,
+      "XOffset": 2
+    },
+    {
+      "Head": 208,
+      "Fixture": "Alpha",
+      "Universe": 4,
+      "Address": 1,
+      "Bar": 3,
       "XOffset": 0
-    },
-    {
-      "Head": 1308,
-      "Universe": 4,
-      "Address": 100,
-      "Bar": 2,
-      "XOffset": 2.5
     }
   ],
   "Network": {
-    "MAgicQIP": "192.168.56.1",
-    //"MAgicQIP": "10.0.0.6",
+    //"MAgicQIP": "192.168.56.1",
+    "MAgicQIP": "10.128.136.226",
     "ArtNet": {
-            "RXIP": "192.168.56.1",
-            "RXSubNetMask": "255.255.255.0",
+      "RXIP": "10.128.136.226",
+      //"RXIP": "192.168.56.1",
+      "RXSubNetMask": "255.255.255.224",
       //"RXIP": "10.0.0.6",
-      //"RXSubNetMask": "255.255.255.0",
+      //"RXSubNetMask": "255.0.0.0",
       //"TXIP": "10.0.0.50",
-      //      "TXIP": "10.0.0.6",
-      "TXIP": "192.168.56.1",
-      "TXSubNetMask": "255.255.255.0",
+      //"TXIP": "10.0.0.5",
+      //"TXSubNetMask": "255.0.0.0",
+      "TXIP": "172.28.208.1",
+      "TXSubNetMask": "255.255.240.0",
       "Broadcast": true,
       "Universe": 60
     }

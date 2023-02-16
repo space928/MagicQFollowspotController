@@ -1,27 +1,30 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Media.Media3D;
 
 namespace MidiApp
 {
-    [Serializable()]
-    public class Follow_Spot : INotifyPropertyChanged
+    [Serializable]
+    public class FollowSpot : INotifyPropertyChanged
     {
         private double pan;
         private double tilt;
 
-        [field: NonSerialized()]
+        [NonSerialized]
         private int mouseControlID = -1;
+
+        [NonSerialized]
+        private bool LeadSpot = false;
+
+        private int zoom = 128;  // Megapointe mode 2: Channel 30
+
+        private double heightOffset = 0.0;
 
         private Point3D target;
         private Point3D currentTarget;
 
-        [field: NonSerialized()]
+        [field: NonSerialized]
         public event PropertyChangedEventHandler PropertyChanged;
 
         public Point3D Location { get; set; }
@@ -41,6 +44,9 @@ namespace MidiApp
         public double Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
         public double Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
         public int MouseControlID { get => mouseControlID; set { mouseControlID = value; OnPropertyChanged(); } }
+        public bool IsLeadSpot { get => LeadSpot; set { LeadSpot = value; OnPropertyChanged(); } }
+        public int Zoom { get => zoom; set { zoom = value; OnPropertyChanged(); } }
+        public double HeightOffset { get => heightOffset; set { heightOffset = value; OnPropertyChanged(); } }
 
         // Create the OnPropertyChanged method to raise the event
         // The calling member's name will be used as the parameter.

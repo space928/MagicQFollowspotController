@@ -9,7 +9,7 @@
         mc:Ignorable="d"
         Title="Looking for X-Touch" Height="289.726" Width="569.452" ShowInTaskbar="False" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" WindowStyle="None">
     <Grid>
-        <Image x:Name="XTouch_jpg" Margin="160,10,159,60" Source="XTouch.png" Stretch="Fill"/>
+        <Image x:Name="XTouch_jpg" Margin="160,10,159,60" Source="Resources\XTouch.png" Stretch="Fill"/>
         <Label x:Name="label" Content="Looking for X-Touch..." HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="20"/>
         <Label x:Name="questionMark" Content="?" HorizontalAlignment="Left" Margin="253,64,0,0" VerticalAlignment="Top" FontSize="96" FontFamily="Arial" FontWeight="Bold" Height="107" Width="71" Foreground="White" RenderTransformOrigin="0.478,0.87" Visibility="Hidden">
             <Label.RenderTransform>

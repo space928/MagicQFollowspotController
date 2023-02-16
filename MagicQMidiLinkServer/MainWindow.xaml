@@ -7,7 +7,7 @@
         xmlns:adonisUi="clr-namespace:AdonisUI;assembly=AdonisUI"
         xmlns:local="clr-namespace:MidiApp"
         mc:Ignorable="d"
-        Title="MacicQ MIDI-link" Loaded="Window_Loaded" Closed="Window_Closed" PreviewLostKeyboardFocus="AdonisWindow_PreviewLostKeyboardFocus" d:DesignWidth="672" Width="680"  Height="551" MinWidth="400">
+        Title="MagicQ MIDI-link" Loaded="Window_Loaded" Closed="Window_Closed" PreviewLostKeyboardFocus="AdonisWindow_PreviewLostKeyboardFocus" d:DesignWidth="672" Width="680"  Height="551" MinWidth="400">
     <Window.Style>
         <Style TargetType="Window" BasedOn="{StaticResource {x:Type Window}}"/>
     </Window.Style>
@@ -100,7 +100,7 @@
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>
-        <Image x:Name="Title_jpg" Margin="10,0,0,0" Source="TitleDk.png" VerticalAlignment="Top" Grid.ColumnSpan="2" HorizontalAlignment="Left" Width="622" Height="97"/>
+        <Image x:Name="Title_jpg" Margin="10,0,0,0" Source="Resources\TitleDk.png" VerticalAlignment="Top" Grid.ColumnSpan="2" HorizontalAlignment="Left" Width="622" Height="97"/>
 
         <!--<Button x:Name="button" Content="Show 3D Tracker" Margin="0,0,5,5" Click="stopButton_Click" HorizontalAlignment="Right" Width="195" Height="31" VerticalAlignment="Bottom" Grid.Column="1" Grid.Row="1"/>-->
         <CheckBox x:Name="alwaysOnTop" Content="Stay on top" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,0,10" Width="136" Unchecked="alwaysOnTop_Unchecked" Checked="alwaysOnTop_Checked" Height="16" VerticalAlignment="Bottom" Grid.Row="1"/>

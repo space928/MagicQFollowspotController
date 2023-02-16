@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FollowSpotController": {
+      "commandName": "Project",
+      "commandLineArgs": "10.128.136.226 1"
+    }
+  }
+}
