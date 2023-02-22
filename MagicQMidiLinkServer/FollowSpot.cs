@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Media.Media3D;
 
 namespace MidiApp
@@ -53,10 +50,10 @@ namespace MidiApp
 
         public FixtureProfile FixtureType { get => fixtureProfile; }
 
-        public void SetFixtureType (string type, AppResourcesData appResources)
+        public void SetFixtureType(string type, AppResourcesData appResources)
         {
             // TODO: Replace this with a dictionary
-            fixtureProfile = appResources.fixtureProfiles.First(x=>x.name==type);
+            fixtureProfile = appResources.fixtureProfiles.First(x => x.name == type);
         }
 
         // Create the OnPropertyChanged method to raise the event
@@ -83,7 +80,8 @@ namespace MidiApp
 
         public FixtureType(String type)
         {
-            switch (type){
+            switch (type)
+            {
                 case "Pointe":
                 case "MegaPointe":
                     m_PanRange = 540.0;
@@ -93,7 +91,7 @@ namespace MidiApp
                     m_PanDMX_BASE = 1;
                     m_TiltDMX_BASE = 3;
                     m_ZoomDMX_BASE = 30;
-                    m_Zoom0 = 42.0; 
+                    m_Zoom0 = 42.0;
                     m_Zoom255 = 3.0;
                     break;
 

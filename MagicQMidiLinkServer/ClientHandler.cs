@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Text.Json;
 using System.Diagnostics;
+using System.Net.Sockets;
+using System.Text.Json;
+using System.Threading;
 
 namespace MidiApp
 {
@@ -30,7 +28,7 @@ namespace MidiApp
         {
             client = p_client;
             mainWindow = p_mainWindow;
-            
+
             try
             {
                 if (clientThread == null)

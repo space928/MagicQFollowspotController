@@ -1,23 +1,19 @@
-﻿using System;
+﻿using Haukcode.ArtNet.Packets;
+using Haukcode.ArtNet.Sockets;
+using Haukcode.Sockets;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Threading;
 using System.Timers;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
-using Haukcode.ArtNet.Packets;
-using Haukcode.ArtNet.Sockets;
-using Haukcode.Sockets;
-using System.Text;
-using System.Text.Json;
-using System.IO;
-using System.Text.Json.Nodes;
 
 namespace MidiApp
 {
@@ -82,7 +78,7 @@ namespace MidiApp
                 };
                 if (v.bar < 0 && v.bar >= appResources.lightingBars.Length)
                 {
-                    MessageBox.Show($"Light with head number {v.head} is assigned to an invalid bar: {v.bar}! There are only {appResources.lightingBars.Length} bars defined!", 
+                    MessageBox.Show($"Light with head number {v.head} is assigned to an invalid bar: {v.bar}! There are only {appResources.lightingBars.Length} bars defined!",
                         "Invalid Configuration!", MessageBoxButton.OK, MessageBoxImage.Stop);
                     Environment.Exit(-1);
                 }
@@ -127,7 +123,8 @@ namespace MidiApp
             {
                 string res = System.IO.File.ReadAllText(resourceFileName);
                 System.IO.File.WriteAllText(resourceFileName + ".bak", res);
-            } catch (FileNotFoundException)
+            }
+            catch (FileNotFoundException)
             {
 
             }
@@ -142,7 +139,7 @@ namespace MidiApp
                 var res = File.ReadAllText(resourceFileName);
                 var markers = JsonSerializer.Deserialize<Marker[]>(res, AppResourcesData.JsonSerializerOptions);
 
-                if (markers!= null)
+                if (markers != null)
                 {
                     m_markers.Clear();
                     m_markers.AddRange(markers);
@@ -254,75 +251,75 @@ namespace MidiApp
                 }, null);
         }
 
-                        //else if (parts[1].Equals("fspot"))
-                        //{
-                        //    if (parts.Length >= 2)
-                        //    {
-                        //        if (parts[2] == "start")
-                        //        {
-                        //            string ids = msg.ToString();
-                        //            int viewID = -1;
+        //else if (parts[1].Equals("fspot"))
+        //{
+        //    if (parts.Length >= 2)
+        //    {
+        //        if (parts[2] == "start")
+        //        {
+        //            string ids = msg.ToString();
+        //            int viewID = -1;
 
-                        //            if (!ids.EndsWith("/"))
-                        //            {
-                        //                ids = ids.Substring(ids.LastIndexOf('/') + 1);
-                        //                string[] idspot = ids.Split(',');
+        //            if (!ids.EndsWith("/"))
+        //            {
+        //                ids = ids.Substring(ids.LastIndexOf('/') + 1);
+        //                string[] idspot = ids.Split(',');
 
-                        //                int headId = Int32.Parse(idspot[0]);
+        //                int headId = Int32.Parse(idspot[0]);
 
-                        //                foreach (Follow_Spot spot in m_spots)
-                        //                {
-                        //                    spot.IsLeadSpot = spot.Head == headId;
-                        //                }
-                        //                if (idspot.Length > 1)
-                        //                {
-                        //                    viewID = Int32.Parse(idspot[1]);
-                        //                }
-                        //            }
+        //                foreach (Follow_Spot spot in m_spots)
+        //                {
+        //                    spot.IsLeadSpot = spot.Head == headId;
+        //                }
+        //                if (idspot.Length > 1)
+        //                {
+        //                    viewID = Int32.Parse(idspot[1]);
+        //                }
+        //            }
 
-                        //            context.Post(delegate (object dummy)
-                        //            {
-                        //                if (m_threeDWindow == null)
-                        //                {
-                        //                    m_threeDWindow = new ThreeD();
-                        //                    m_threeDWindow.grab();
-                        //                }
-                        //                else
-                        //                {
-                        //                    m_threeDWindow.Show();
-                        //                }
+        //            context.Post(delegate (object dummy)
+        //            {
+        //                if (m_threeDWindow == null)
+        //                {
+        //                    m_threeDWindow = new ThreeD();
+        //                    m_threeDWindow.grab();
+        //                }
+        //                else
+        //                {
+        //                    m_threeDWindow.Show();
+        //                }
 
-                        //                if (viewID > 0)
-                        //                {
-                        //                    m_threeDWindow.setCameraView(viewID - 1);
-                        //                }
+        //                if (viewID > 0)
+        //                {
+        //                    m_threeDWindow.setCameraView(viewID - 1);
+        //                }
 
-                        //                if (leadSpot() >= 0)
-                        //                {
-                        //                    m_threeDWindow.Macro_moveSpot(leadSpot());
-                        //                    m_threeDWindow.setActive(true);
-                        //                }
-                        //                else
-                        //                {
-                        //                    m_threeDWindow.setActive(false);
-                        //                }
-                        //            }, null);
+        //                if (leadSpot() >= 0)
+        //                {
+        //                    m_threeDWindow.Macro_moveSpot(leadSpot());
+        //                    m_threeDWindow.setActive(true);
+        //                }
+        //                else
+        //                {
+        //                    m_threeDWindow.setActive(false);
+        //                }
+        //            }, null);
 
-                        //        }
-                        //        else if (parts[2] == "stop")
-                        //        {
-                        //            foreach (Follow_Spot spot in m_spots)
-                        //            {
-                        //                spot.IsLeadSpot = false;
-                        //            }
+        //        }
+        //        else if (parts[2] == "stop")
+        //        {
+        //            foreach (Follow_Spot spot in m_spots)
+        //            {
+        //                spot.IsLeadSpot = false;
+        //            }
 
-                        //            if (m_threeDWindow != null)
-                        //            {
-                        //                context.Post(delegate (object dummy)
-                        //                {
-                        //                    m_threeDWindow.setActive(false);
-                        //                }, null);
-                        //            }
+        //            if (m_threeDWindow != null)
+        //            {
+        //                context.Post(delegate (object dummy)
+        //                {
+        //                    m_threeDWindow.setActive(false);
+        //                }, null);
+        //            }
 
         public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
         {
@@ -531,7 +528,7 @@ namespace MidiApp
                     spot.CurrentTarget += spot.Velocity;
                     spot.Velocity *= 0.5;
 
-                    Point3D tgt_offsetted = new(spot.CurrentTarget.X, spot.CurrentTarget.Y, spot.CurrentTarget.Z+ spot.HeightOffset);
+                    Point3D tgt_offsetted = new(spot.CurrentTarget.X, spot.CurrentTarget.Y, spot.CurrentTarget.Z + spot.HeightOffset);
 
                     Vector3D p = tgt_offsetted - spot.Location;
                     Point3D direction = Spherical.ToSpherical(-p.Y, p.X, p.Z);
@@ -634,13 +631,13 @@ namespace MidiApp
                     byte[] buffer = new byte[1024];
 
                     buffer[0] = 1; // Client Connect
-                    buffer[1] = (byte)clientID; 
+                    buffer[1] = (byte)clientID;
 
                     client.Send(buffer, 2, SocketFlags.None);
                     ActivityMQ(2);
 
-//                    if (m_spots.Count>0)
-//                        m_spots[0].IsLeadSpot = true;
+                    //                    if (m_spots.Count>0)
+                    //                        m_spots[0].IsLeadSpot = true;
 
                     int count = 0;
                     do
@@ -671,7 +668,7 @@ namespace MidiApp
 
                                     context?.Post(delegate (object dummy)
                                         {
-                                            ControllerID.Content = ""+clientID;
+                                            ControllerID.Content = "" + clientID;
                                         }, null);
                                 }
                                 break;
@@ -754,7 +751,7 @@ namespace MidiApp
                                 break;
                         }
 
-                    } while (count>0);
+                    } while (count > 0);
 
                     throw new Exception("Read zero");
                 }
@@ -764,7 +761,8 @@ namespace MidiApp
                     try
                     {
                         client.Close();
-                    } catch (Exception e2)
+                    }
+                    catch (Exception e2)
                     {
                         Debug.WriteLine("Socket Exception2:" + e2);
                     }

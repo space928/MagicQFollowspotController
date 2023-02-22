@@ -1,20 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using HelixToolkit.Wpf;
+using System;
+using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
-using HelixToolkit.Wpf;
-using System.Windows.Shapes;
-using System.Runtime.InteropServices;
-using System.Text.Json;
 
 namespace MidiApp
 {
@@ -96,7 +86,7 @@ namespace MidiApp
         {
             ((MainViewModel)(DataContext)).UpdateModel();
 
-            Array.Copy(MainWindow.appResources.cameraPositions, CameraSaveStates, 
+            Array.Copy(MainWindow.appResources.cameraPositions, CameraSaveStates,
                 Math.Min(CameraSaveStates.Length, MainWindow.appResources.cameraPositions.Length));
         }
 
