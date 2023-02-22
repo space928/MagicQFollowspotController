@@ -1,0 +1,44 @@
+﻿<Window x:Name="ThreeD1" x:Class="MidiApp.ThreeD"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:HelixToolkit="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
+        xmlns:helix="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf" 
+
+        xmlns:local="clr-namespace:MidiApp"
+        mc:Ignorable="d"
+        Title="3D Followspot Tracker" Height="1000" Width="1200" Activated="Window_Activated" Topmost="True" KeyDown="ThreeD1_KeyDown" Closed="ThreeD1_Closed"
+        Cursor="None" Deactivated="ThreeD1_Deactivated">
+    <Window.Background>
+        <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.MenuTextColorKey}}"/>
+    </Window.Background>
+
+    <Window.DataContext>
+        <local:MainViewModel />
+    </Window.DataContext>
+    <Grid>
+        <Rectangle x:Name="ActiveMarker" StrokeThickness="4"/>
+        <helix:HelixViewport3D x:Name="viewport3D" Grid.Row="1" MouseMove="HelixViewport3D_MouseMove" MouseDown="viewport3D_MouseDown" MouseUp="HelixViewport3D_MouseUp" Margin="4">
+            <helix:DefaultLights/>
+
+            <!--  The content of this visual is defined in MainViewModel.cs  -->
+            <ModelVisual3D Content="{Binding Model}" />
+
+            <helix:GridLinesVisual3D Center="0 0 -0.1" Fill="DarkGreen"/>
+
+            <helix:EllipsoidVisual3D Center="0 0 0" Fill="Green" RadiusX="0.45" RadiusY="0.3" RadiusZ="0.45"/>
+
+        </helix:HelixViewport3D>
+        <Canvas x:Name="RedCursor" HorizontalAlignment="Left" Height="50" VerticalAlignment="Top" Width="50" Margin="210,176,0,0" IsHitTestVisible="False">
+            <Ellipse HorizontalAlignment="Left" Height="50" Stroke="Red" StrokeThickness="2" VerticalAlignment="Top" Width="50" Canvas.Left="0" Canvas.Top="0"/>
+            <Rectangle HorizontalAlignment="Left" Height="2" Stroke="Red" StrokeThickness="2" VerticalAlignment="Top" Width="75" RenderTransformOrigin="0.531,0.492" Canvas.Left="-12" Canvas.Top="24"/>
+            <Rectangle HorizontalAlignment="Left" Height="75" Stroke="Red" StrokeThickness="3" VerticalAlignment="Top" Width="2" RenderTransformOrigin="0.531,0.492" Canvas.Left="24" Canvas.Top="-12"/>
+        </Canvas>
+        <Canvas x:Name="GreenCursor" HorizontalAlignment="Left" Height="50" VerticalAlignment="Top" Width="50" Margin="368,176,0,0" IsEnabled="False">
+            <Ellipse HorizontalAlignment="Left" Height="50" Stroke="#FF00C000" StrokeThickness="2" VerticalAlignment="Top" Width="50" Canvas.Left="0" Canvas.Top="0" IsEnabled="False"/>
+            <Rectangle HorizontalAlignment="Left" Height="2" Stroke="#FF00C000" StrokeThickness="2" VerticalAlignment="Top" Width="75" RenderTransformOrigin="0.531,0.492" Canvas.Left="-12" Canvas.Top="24" IsEnabled="False"/>
+            <Rectangle HorizontalAlignment="Left" Height="75" Stroke="#FF00C000" StrokeThickness="3" VerticalAlignment="Top" Width="2" RenderTransformOrigin="0.531,0.492" Canvas.Left="24" Canvas.Top="-12" IsEnabled="False"/>
+        </Canvas>
+    </Grid>
+</Window>
