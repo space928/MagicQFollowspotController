@@ -14,10 +14,10 @@ using Haukcode.ArtNet.Sockets;
 using Haukcode.Sockets;
 using Rug.Osc;
 using Sanford.Multimedia.Midi;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Bson;
 using System.IO;
 using ErrorEventArgs = Sanford.Multimedia.ErrorEventArgs;
+using System.Text.Json;
+using System.Windows.Interop;
 
 namespace MidiApp
 {
@@ -48,7 +48,7 @@ namespace MidiApp
 
 
         public static List<FollowSpot> FollowSpots { get; } = new();
-        public static dynamic appResources;
+        public static AppResourcesData appResources;
 
         private OscSender sender;
         private OscReceiver receiver;
@@ -116,13 +116,13 @@ namespace MidiApp
 
             try
             {
-                MQ_IPAddress = IPAddress.Parse((string)appResources.Network.MAgicQIP);
-                ARTNET_RXIPAddress = IPAddress.Parse((string)appResources.Network.ArtNet.RXIP);
-                ARTNET_RXSubNetMask = IPAddress.Parse((string)appResources.Network.ArtNet.RXSubNetMask);
-                ARTNET_TXIPAddress = IPAddress.Parse((string)appResources.Network.ArtNet.TXIP);
-                ARTNET_TXSubNetMask = IPAddress.Parse((string)appResources.Network.ArtNet.TXSubNetMask);
-                ARTNET_TXUseBroadcast = (bool)appResources.Network.ArtNet.Broadcast;
-                ARTNET_TXUniverse = (int)appResources.Network.ArtNet.Universe;
+                MQ_IPAddress = IPAddress.Parse((string)appResources.network.magicQIP);
+                ARTNET_RXIPAddress = IPAddress.Parse((string)appResources.network.artNet.rxIP);
+                ARTNET_RXSubNetMask = IPAddress.Parse((string)appResources.network.artNet.rxSubNetMask);
+                ARTNET_TXIPAddress = IPAddress.Parse((string)appResources.network.artNet.txIP);
+                ARTNET_TXSubNetMask = IPAddress.Parse((string)appResources.network.artNet.txSubNetMask);
+                ARTNET_TXUseBroadcast = (bool)appResources.network.artNet.broadcast;
+                ARTNET_TXUniverse = (int)appResources.network.artNet.universe;
             }
             catch (Exception e)
             {
@@ -141,24 +141,49 @@ namespace MidiApp
 
         public void SaveAppResource()
         {
-            string res = System.IO.File.ReadAllText(resourceFileName);
-            System.IO.File.WriteAllText(resourceFileName + ".bak", res);
+            try
+            {
+                string res = File.ReadAllText(resourceFileName);
+                File.WriteAllText(resourceFileName + ".bak", res);
+            } catch (FileNotFoundException)
+            {
 
-            System.IO.File.WriteAllText(resourceFileName, JsonConvert.SerializeObject(appResources));
+            }
+
+            JsonSerializerOptions options = new(AppResourcesData.JsonSerializerOptions)
+            { 
+                WriteIndented = true,
+            };
+
+            File.WriteAllText(resourceFileName, JsonSerializer.Serialize(appResources, options));
         }
 
-        public dynamic GetAppResource()
+        public AppResourcesData GetAppResource()
         {
             try
             {
-                var res = System.IO.File.ReadAllText(resourceFileName);
-                return JsonConvert.DeserializeObject(res);
-            }
-            catch (System.IO.FileNotFoundException)
+                var res = File.ReadAllText(resourceFileName);
+                var data = JsonSerializer.Deserialize<AppResourcesData>(res, AppResourcesData.JsonSerializerOptions);
+                if (data.fileFormatVersion != AppResourcesData.FILE_FORMAT_VERSION)
+                {
+                    MessageBox.Show($"Resource file has an invalid file format version: {data.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.", 
+                        "Resource File Version Error", MessageBoxButton.OK, MessageBoxImage.Stop);
+                    Environment.Exit(-1);
+                }
+                return data;
+            }  catch (JsonException e)
             {
-                MessageBox.Show("Cannot find resource file\n" + resourceFileName, "File Not Found", MessageBoxButton.OK, MessageBoxImage.Stop);
-                Close();
-                return null;
+                MessageBox.Show("Couldn't parse resource file\n" + e, "Resource File Parse Error", MessageBoxButton.OK, MessageBoxImage.Stop);
+                Environment.Exit(-1);
+                return default;
+            } catch (FileNotFoundException)
+            {
+                MessageBox.Show("Cannot find resource file\n" + resourceFileName + "\nAn empty resource file will be created!", "File Not Found", 
+                    MessageBoxButton.OK, MessageBoxImage.Stop);
+                appResources = new();
+                SaveAppResource();
+                Environment.Exit(-1);
+                return default;
             }
         }
 
@@ -201,7 +226,7 @@ namespace MidiApp
                         progress.Report("Searching.");
                         for (var d = 0; d < InputDevice.DeviceCount; d++)
                         {
-                            Console.WriteLine("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
+                            Debug.WriteLine("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
 
                             if (InputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
                             {
@@ -218,7 +243,7 @@ namespace MidiApp
                         progress.Report("Searching..");
                         for (var d = 0; d < OutputDevice.DeviceCount; d++)
                         {
-                            Console.WriteLine("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
+                            Debug.WriteLine("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
                             if (OutputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
                             {
                                 outDevice = new OutputDevice(d);
@@ -513,7 +538,7 @@ namespace MidiApp
                         OscPacket pkt = receiver.Receive();
                         justRecieved = true;
 
-                        Console.WriteLine("OSC Packet: " + pkt.ToString());
+                        Debug.WriteLine("OSC Packet: " + pkt.ToString());
                         Activity(1);
                         ActivityMQ(1);
 
@@ -547,7 +572,7 @@ namespace MidiApp
                                 };
                                 builder.Build();
                                 outDevice.Send(builder.Result);
-                                // Console.WriteLine("SetButton: " + (buttonId).ToString() + " " + buttons[buttonId]);
+                                // Debug.WriteLine("SetButton: " + (buttonId).ToString() + " " + buttons[buttonId]);
                             }
 
                         }
@@ -595,7 +620,7 @@ namespace MidiApp
                                         outDevice.Send(builder.Result);
                                     }
 
-                                    //Console.WriteLine("Set Fader: " + (playback).ToString() + " " + value);
+                                    //Debug.WriteLine("Set Fader: " + (playback).ToString() + " " + value);
                                 }
 
                             }
@@ -722,7 +747,7 @@ namespace MidiApp
                                     }
                                     buttons[selected_pb + 39 - 16] = true;
                                     selectedPlayback = selected_pb;
-                                    Console.WriteLine("selectedPlayback: " + selectedPlayback);
+                                    Debug.WriteLine("selectedPlayback: " + selectedPlayback);
                                     builder.Command = ChannelCommand.NoteOn;
                                     for (int j = 0; j < 9; j++)
                                     {
@@ -739,7 +764,7 @@ namespace MidiApp
                 }
                 catch (System.Exception e)
                 {
-                    Console.WriteLine("Exception Thrown" + e);
+                    Debug.WriteLine("Exception Thrown" + e);
                 }
 
                 try
@@ -794,17 +819,11 @@ namespace MidiApp
             if (p == 0)
                 msg.spots = null;
 
-            JsonSerializer clientMessageSerializer = new();
-            using MemoryStream clientMessageStream = new();
-            using BsonDataWriter clientMessageWriter = new(clientMessageStream);
-            clientMessageSerializer.Serialize(clientMessageWriter, msg);
-            byte[] buffer = new byte[clientMessageStream.Length + 3];
-            buffer[0] = (byte)MessageType.Message; // Message
-            buffer[1] = (byte)(clientMessageStream.Length / 256);
-            buffer[2] = (byte)(clientMessageStream.Length & 0xFF);
-            // clientMessageStream.ToArray();
-
-            Array.Copy(clientMessageStream.ToArray(), 0, buffer, 3, clientMessageStream.Length);
+            byte[] msgBytes = JsonSerializer.SerializeToUtf8Bytes(msg, AppResourcesData.JsonSerializerOptions);
+            Span<byte> header = stackalloc byte[3];
+            header[0] = (byte)MessageType.Message; // Message
+            header[1] = (byte)(msgBytes.Length / 256);
+            header[2] = (byte)(msgBytes.Length & 0xFF);
 
             if (clientID < clientHandlers.Length)
             {
@@ -817,7 +836,10 @@ namespace MidiApp
                         Socket client = ch.Client;
 
                         if (client.Connected)
-                            client.Send(buffer, (int)clientMessageStream.Length + 3, SocketFlags.None);
+                        {
+                            client.Send(header, SocketFlags.None);
+                            client.Send(msgBytes, SocketFlags.None);
+                        }
                     }
                     catch
                     {
@@ -831,7 +853,7 @@ namespace MidiApp
 
         public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            Console.WriteLine("Mouse position" + e.GetPosition(this));
+            Debug.WriteLine("Mouse position" + e.GetPosition(this));
         }
 
         private void Window_Loaded(object source, RoutedEventArgs e)
@@ -953,27 +975,17 @@ namespace MidiApp
 
                 StartListening(MQ_IPAddress);
 
-                foreach (dynamic v in appResources.Lights)
+                foreach (var v in appResources.lights)
                 {
                     FollowSpot spot = new()
                     {
-                        Head = v.Head,
-                        Universe = v.Universe,
-                        Address = v.Address,
+                        Head = v.head,
+                        Universe = v.universe,
+                        Address = v.address,
                         MouseControlID = -1
                     };
-                    spot.SetFixtureType((string)(v.Fixture.Value));
-
-                    Point3D p;
-                    switch ((int)v.Bar)
-                    {
-                        case 0: p = new Point3D((double)v.XOffset, 0.0, (double)appResources.Bar0Height + 0.1); break;
-                        case -1: p = new Point3D((double)v.XOffset, (double)appResources.BarAudienceOffset, (double)appResources.BarAudienceHeight + 0.1); break;
-                        case 1: p = new Point3D((double)v.XOffset, (double)appResources.Bar1Offset, (double)appResources.Bar1Height + 0.1); break;
-                        case 2: p = new Point3D((double)v.XOffset, (double)appResources.Bar2Offset, (double)appResources.Bar2Height + 0.1); break;
-                        default: p = new Point3D((double)v.XOffset, (double)appResources.Bar3Offset, (double)appResources.Bar3Height + 0.1); break;
-                    }
-                    spot.Location = p;
+                    spot.SetFixtureType(v.fixture, appResources);
+                    spot.Location = new Point3D(v.xOffset, appResources.lightingBars[v.bar].offset, appResources.lightingBars[v.bar].height + 0.1);
 
                     FollowSpots.Add(spot);
                 }
@@ -1031,7 +1043,7 @@ namespace MidiApp
 
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
-            //Console.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
+            //Debug.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
             if (!SpotsOnMouseControl())
             {
                 ArtNetactivity(1);
@@ -1045,13 +1057,20 @@ namespace MidiApp
                         {
                             if (dmx.Universe == spot.Universe)
                             {
-                                double pan = Math.Round(((dmx.DmxData[spot.Address + (spot.FixtureType.PanDMX_BASE - 2)] * 256) + dmx.DmxData[spot.Address + (spot.FixtureType.PanDMX_BASE - 1)]) / 65535.0 * spot.FixtureType.PanRange - (spot.FixtureType.PanRange / 2), 3);
-                                double tilt = Math.Round(((dmx.DmxData[spot.Address + (spot.FixtureType.TiltDMX_BASE - 2)] * 256) + dmx.DmxData[spot.Address + (spot.FixtureType.TiltDMX_BASE - 1)]) / 65535.0 * (spot.FixtureType.TiltRange) - (spot.FixtureType.TiltRange / 2), 3);
+                                double pan = Math.Round(((dmx.DmxData[spot.Address + (spot.FixtureType.panLowChannel - 2)] * 256)
+                                    + dmx.DmxData[spot.Address + (spot.FixtureType.panLowChannel - 1)]) / 65535.0
+                                    * spot.FixtureType.panRange - (spot.FixtureType.panRange / 2), 3);
+                                double tilt = Math.Round(((dmx.DmxData[spot.Address + (spot.FixtureType.tiltLowChannel - 2)] * 256)
+                                    + dmx.DmxData[spot.Address + (spot.FixtureType.tiltLowChannel - 1)]) / 65535.0
+                                    * (spot.FixtureType.tiltRange) - (spot.FixtureType.tiltRange / 2), 3);
 
-                                if (spot.FixtureType.PanInvert)
+                                if (spot.FixtureType.panTiltSwap)
+                                    (pan, tilt) = (tilt, pan);
+
+                                if (spot.FixtureType.panInvert)
                                     pan = -pan;
 
-                                if (spot.FixtureType.TiltInvert)
+                                if (spot.FixtureType.tiltInvert)
                                     tilt = -tilt;
 
                                 spot.Pan = pan;
@@ -1066,7 +1085,7 @@ namespace MidiApp
                         //                        int p = (dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address];
                         //                        int t = (dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2];
 
-                        //Console.WriteLine("P: {0}, T:{1}", p, t);
+                        //Debug.WriteLine("P: {0}, T:{1}", p, t);
 
                         //}
 
@@ -1078,7 +1097,7 @@ namespace MidiApp
 
                     if ((SpotsOnMouseControl()) && ((dmx.Universe != (short)ARTNET_TXUniverse)))
                     {
-                        updateDMX(dmx.DmxData, (byte)(dmx.Universe - ARTNET_TXUniverse));
+                        UpdateDMX(dmx.DmxData, (byte)(dmx.Universe - ARTNET_TXUniverse));
                     }
                 }
             }
@@ -1087,17 +1106,11 @@ namespace MidiApp
 
         void InformClients()
         {
-            JsonSerializer clientMessageSerializer = new();
-            using MemoryStream clientMessageStream = new();
-            using BsonDataWriter clientMessageWriter = new(clientMessageStream);
-            clientMessageSerializer.Serialize(clientMessageWriter, FollowSpots);
-            byte[] buffer = new byte[clientMessageStream.Length + 3];
-            buffer[0] = (byte)MessageType.SpotUpdate; // Position Update
-            buffer[1] = (byte)(clientMessageStream.Length / 256);
-            buffer[2] = (byte)(clientMessageStream.Length & 0xFF);
-            //stream.ToArray();
-
-            Array.Copy(clientMessageStream.ToArray(), 0, buffer, 3, clientMessageStream.Length);
+            byte[] msgBytes = JsonSerializer.SerializeToUtf8Bytes(FollowSpots, AppResourcesData.JsonSerializerOptions);
+            Span<byte> header = stackalloc byte[3];
+            header[0] = (byte)MessageType.SpotUpdate; // Position Update
+            header[1] = (byte)(msgBytes.Length / 256);
+            header[2] = (byte)(msgBytes.Length & 0xFF);
 
             for (int c = 0; c < clientHandlers.Length; c++)
             {
@@ -1110,7 +1123,10 @@ namespace MidiApp
                         Socket client = ch.Client;
 
                         if (client.Connected)
-                            client.Send(buffer, (int)clientMessageStream.Length + 3, SocketFlags.None);
+                        {
+                            client.Send(header, SocketFlags.None);
+                            client.Send(msgBytes, SocketFlags.None);
+                        }
                     }
                     catch
                     {
@@ -1175,7 +1191,7 @@ namespace MidiApp
         {
 
             Activity(0);
-            Console.WriteLine("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
+            Debug.WriteLine("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
             if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 < 10))
             {
                 sender.Send(new OscMessage("/pb/" + e.Message.Data1, e.Message.Data2 / 127.0f));
@@ -1216,7 +1232,7 @@ namespace MidiApp
                     }
 
                     sender.Send(new OscMessage("/rpc", "\\07," + (attribute) + "," + (delta) + "H"));
-                    //Console.WriteLine("Controller: " + "/rpc " + "\\07, " + (attribute) + ", " + (delta) + "," + ((encoderState[e.Message.Data1 - 10]) ? "1" : "0") + "H");
+                    //Debug.WriteLine("Controller: " + "/rpc " + "\\07, " + (attribute) + ", " + (delta) + "," + ((encoderState[e.Message.Data1 - 10]) ? "1" : "0") + "H");
                 }
                 else
                 {
@@ -1226,10 +1242,10 @@ namespace MidiApp
                         delta *= 2;
                     }
                     sender.Send(new OscMessage("/rpc", "\\08," + (attribute) + "," + (delta) + "H"));
-                    //Console.WriteLine("Controller: " +"/rpc " + "\\08, " + (attribute) + ", " + (delta) + "," +((encoderState[e.Message.Data1 - 10]) ?"1":"0")+ "H");
+                    //Debug.WriteLine("Controller: " +"/rpc " + "\\08, " + (attribute) + ", " + (delta) + "," +((encoderState[e.Message.Data1 - 10]) ?"1":"0")+ "H");
                 }
 
-                //Console.WriteLine("Controller: " + e.Message.Data1 + ":" + e.Message.Data2);
+                //Debug.WriteLine("Controller: " + e.Message.Data1 + ":" + e.Message.Data2);
 
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 < 16) && (e.Message.Data2 == 127))
@@ -1256,7 +1272,7 @@ namespace MidiApp
                 buttons[e.Message.Data1 - 16] = !buttons[e.Message.Data1 - 16];
 
                 sender.Send(new OscMessage("/exec/" + (e.Message.Data1 - 15), buttons[e.Message.Data1 - 16] ? 1 : 0));
-                //  Console.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
+                //  Debug.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 16) && (e.Message.Data1 <= 39) && (e.Message.Data2 == 0))
             {
@@ -1267,7 +1283,7 @@ namespace MidiApp
                 builder.Data2 = buttons[e.Message.Data1 - 16] ? 1 : 0;
                 builder.Build();
                 outDevice.Send(builder.Result);
-                // Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                // Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
                 //                sender.Send(new OscMessage("/feedback/exec"));
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 >= 50))
@@ -1279,7 +1295,7 @@ namespace MidiApp
                 }
                 buttons[e.Message.Data1 - 16] = true;
                 selectedPlayback = e.Message.Data1 - 39;
-                Console.WriteLine("selectedPlayback: " + selectedPlayback);
+                Debug.WriteLine("selectedPlayback: " + selectedPlayback);
                 builder.Command = ChannelCommand.NoteOn;
                 for (int j = 0; j < 9; j++)
                 {
@@ -1288,7 +1304,7 @@ namespace MidiApp
                     builder.Build();
                     outDevice.Send(builder.Result);
                 }
-                //  Console.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
+                //  Debug.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 == 0))
             {
@@ -1302,7 +1318,7 @@ namespace MidiApp
                     builder.Build();
                     outDevice.Send(builder.Result);
                 }
-                //Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                //Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 49) && (e.Message.Data1 <= 54) && (e.Message.Data2 >= 50))
             {
@@ -1332,7 +1348,7 @@ namespace MidiApp
                     }
                 }
 
-                //Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                //Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
                 //                sender.Send(new OscMessage("/feedback/exec"));
 
             }
@@ -1454,10 +1470,10 @@ namespace MidiApp
             //    spot.Pan = direction.Z;
             //}
 
-            updateDMX();
+            UpdateDMX();
         }
 
-        public void updateDMX(byte[] packet, byte universe)
+        public void UpdateDMX(byte[] packet, byte universe)
         {
             ArtNetSequence++;
 
@@ -1485,7 +1501,7 @@ namespace MidiApp
             ArtNetactivity(2);
         }
 
-        public void updateDMX()
+        public void UpdateDMX()
         {
             HashSet<int> universes = new HashSet<int>();
 
@@ -1505,24 +1521,28 @@ namespace MidiApp
                         double pan = spot.Pan;
                         double tilt = spot.Tilt;
 
-                        if (spot.FixtureType.PanInvert)
+                        if (spot.FixtureType.panTiltSwap)
+                            (pan, tilt) = (tilt, pan);
+
+                        if (spot.FixtureType.panInvert)
                             pan = -pan;
 
-                        if (spot.FixtureType.TiltInvert)
+                        if (spot.FixtureType.tiltInvert)
                             tilt = -tilt;
 
-                        int PanDMX = (int)Math.Round((((pan + (spot.FixtureType.PanRange / 2)) / spot.FixtureType.PanRange) * 65535.0), 0);
-                        int TiltDMX = (int)Math.Round((((tilt + (spot.FixtureType.TiltRange / 2)) / spot.FixtureType.TiltRange) * 65535.0), 0);
+                        int PanDMX = (int)Math.Round((((pan + (spot.FixtureType.panRange / 2)) / spot.FixtureType.panRange) * 65535.0), 0);
+                        int TiltDMX = (int)Math.Round((((tilt + (spot.FixtureType.tiltRange / 2)) / spot.FixtureType.tiltRange) * 65535.0), 0);
 
-                        packet[spot.Address + (spot.FixtureType.PanDMX_BASE - 2)] = (byte)(PanDMX / 256);
-                        packet[spot.Address + (spot.FixtureType.PanDMX_BASE - 1)] = (byte)(PanDMX % 256);
-                        packet[spot.Address + (spot.FixtureType.TiltDMX_BASE - 2)] = (byte)(TiltDMX / 256);
-                        packet[spot.Address + (spot.FixtureType.TiltDMX_BASE - 1)] = (byte)(TiltDMX % 256);
-                        packet[spot.Address + (spot.FixtureType.ZoomDMX_BASE - 2)] = (byte)(spot.Zoom);
+                        packet[spot.Address + (spot.FixtureType.panLowChannel - 2)] = (byte)(PanDMX / 256);
+                        packet[spot.Address + (spot.FixtureType.panLowChannel - 1)] = (byte)(PanDMX % 256);
+                        packet[spot.Address + (spot.FixtureType.tiltLowChannel - 2)] = (byte)(TiltDMX / 256);
+                        packet[spot.Address + (spot.FixtureType.tiltLowChannel - 1)] = (byte)(TiltDMX % 256);
+                        if(spot.FixtureType.zoomControl)
+                            packet[spot.Address + (spot.FixtureType.zoomChannel - 2)] = (byte)(spot.Zoom);
                     }
                 }
 
-                updateDMX(packet, universe);
+                UpdateDMX(packet, universe);
             }
         }
 
@@ -1560,7 +1580,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.ToString());
+                Debug.WriteLine(e.ToString());
             }
         }
 
@@ -1574,9 +1594,9 @@ namespace MidiApp
                     allDone.Reset();
 
                     // Start an asynchronous socket to listen for connections.  
-                    Console.WriteLine("Waiting for a connection...");
+                    Debug.WriteLine("Waiting for a connection...");
                     Socket client = listener.Accept();
-                    Console.WriteLine("Connected ...");
+                    Debug.WriteLine("Connected ...");
                     ClientHandler ch = new ClientHandler(client, this);
 
                     ch.Start();
@@ -1584,7 +1604,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.ToString());
+                Debug.WriteLine(e.ToString());
             }
         }
 

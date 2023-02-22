@@ -16,7 +16,7 @@ namespace MidiApp
         private double tilt;
 
         [NonSerialized]
-        private FixtureType Fixture_Type = new("Pointe");
+        private FixtureProfile fixtureProfile;
 
         [NonSerialized]
         private int mouseControlID = -1;
@@ -51,11 +51,12 @@ namespace MidiApp
         public int Zoom { get => zoom; set { zoom = value; OnPropertyChanged(); } }
         public double HeightOffset { get => heightOffset; set { heightOffset = value; OnPropertyChanged(); } }
 
-        public FixtureType FixtureType { get => Fixture_Type; }
+        public FixtureProfile FixtureType { get => fixtureProfile; }
 
-        public void SetFixtureType (string type)
+        public void SetFixtureType (string type, AppResourcesData appResources)
         {
-            Fixture_Type = new FixtureType(type);
+            // TODO: Replace this with a dictionary
+            fixtureProfile = appResources.fixtureProfiles.First(x=>x.name==type);
         }
 
         // Create the OnPropertyChanged method to raise the event

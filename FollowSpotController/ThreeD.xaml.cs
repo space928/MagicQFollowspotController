@@ -14,7 +14,7 @@ using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
 using System.Windows.Shapes;
 using System.Runtime.InteropServices;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
 
 namespace MidiApp
 {
@@ -38,9 +38,9 @@ namespace MidiApp
         private Material m_spotMaterial;
         private Material m_spotMaterialSelected;
         private bool m_mousedown = false;
-        CameraState[] CameraSaveStates = new CameraState[5];
+        CameraPosition[] CameraSaveStates = new CameraPosition[5];
 
-        public void setActive(bool active)
+        public void SetActive(bool active)
         {
             if (active)
             {
@@ -54,7 +54,7 @@ namespace MidiApp
 
         }
 
-        public void grab()
+        public void Grab()
         {
             //Left = 0;
             //Top = 0;
@@ -75,11 +75,12 @@ namespace MidiApp
 
             m_spotSphere = e3d;
             var beamMatrial = MaterialHelper.CreateMaterial(Colors.White, 0.5);
-            var beam = new MeshGeometryVisual3D();
-
-            beam.Material = beamMatrial;
-            beam.Transform = new TranslateTransform3D(0, 0, 0);
-            beam.BackMaterial = null;
+            var beam = new MeshGeometryVisual3D
+            {
+                Material = beamMatrial,
+                Transform = new TranslateTransform3D(0, 0, 0),
+                BackMaterial = null
+            };
 
             m_beam = beam;
 
@@ -93,36 +94,21 @@ namespace MidiApp
 
         public void UpdateModel()
         {
-            ((MainViewModel)(DataContext)).updateModel();
+            ((MainViewModel)(DataContext)).UpdateModel();
 
-            if (MainWindow.AppResources.CameraPositions != null)
-            {
-                for (int i = 0; i < CameraSaveStates.Length; i++)
-                {
-                    var p = MainWindow.AppResources.CameraPositions[i];
-                    if (p != null)
-                    {
-                        CameraSaveStates[i] = new CameraState();
-                        CameraSaveStates[i].Location = (Point3D)(p.Location);
-                        CameraSaveStates[i].Direction = (Vector3D)(p.Direction);
-                        CameraSaveStates[i].UpDirection = (Vector3D)(p.UpDirection);
-                        CameraSaveStates[i].FOV = (double)p.FOV;
-                    }
-                }
-            }
-
+            Array.Copy(MainWindow.appResources.cameraPositions, CameraSaveStates, 
+                Math.Min(CameraSaveStates.Length, MainWindow.appResources.cameraPositions.Length));
         }
 
         private static void SetCursor(int x, int y)
         {
-
             SetCursorPos(x, y);
         }
 
         private void Window_Activated(object sender, EventArgs e)
         {
             //            SetCursor((int)Width / 2, (int)Height / 2);
-            //   Console.WriteLine("Catured: " + CaptureMouse());
+            //   Debug.WriteLine("Catured: " + CaptureMouse());
 
             //            vertLine.Height = Height;
             //            horizLine.Width = Width;
@@ -151,8 +137,12 @@ namespace MidiApp
 
                     var tt = mod.Bounds.Equals(b.Bounds);
 
-                    if ((mod.Bounds.Equals(((MainViewModel)(DataContext)).m_Boxes.Bounds)) ||
-                        (mod.Bounds.Equals(((MainViewModel)(DataContext)).m_Theatre.Bounds)))
+                    bool boxHit = false;
+                    foreach (var box in ((MainViewModel)(DataContext)).m_BoxesModelGroup.Children)
+                        boxHit |= mod.Bounds.Equals(box.Bounds);
+
+                    if (boxHit ||
+                        mod.Bounds.Equals(((MainViewModel)(DataContext)).m_Theatre.Bounds))
                     {
                         pt = hit.Position;
                         break;
@@ -185,7 +175,7 @@ namespace MidiApp
                 return movement;
             }
 
-            ((MainViewModel)(DataContext)).showLights();
+            ((MainViewModel)(DataContext)).ShowLights();
             return 0.0;
         }
 
@@ -274,7 +264,7 @@ namespace MidiApp
 
                 case Key.L:
                     ((MainWindow)App.Current.MainWindow).LoadMarkers();
-                    ((MainViewModel)(DataContext)).makeMarker();
+                    ((MainViewModel)(DataContext)).MakeMarker();
                     break;
             }
 
@@ -289,19 +279,18 @@ namespace MidiApp
 
                     if (camera != null)
                     {
-                        var c = new CameraState();
-                        c.Location = camera.Position;
-                        c.Direction = camera.LookDirection;
-                        c.FOV = camera.FieldOfView;
-                        c.UpDirection = camera.UpDirection;
+                        CameraPosition c = new()
+                        {
+                            location = camera.Position,
+                            direction = (Point3D)camera.LookDirection,
+                            fov = camera.FieldOfView,
+                            upDirection = (Point3D)camera.UpDirection
+                        };
                         CameraSaveStates[cameraSlot] = c;
 
-                        string cameras = Newtonsoft.Json.JsonConvert.SerializeObject(CameraSaveStates);
-                        var ds = Newtonsoft.Json.JsonConvert.DeserializeObject(cameras);
-
-                        MainWindow.AppResources.Remove("CameraPositions");
-
-                        MainWindow.AppResources.Add("CameraPositions", (JToken)ds);
+                        // Update the camera data in the resource dictionary
+                        MainWindow.appResources.cameraPositions = new CameraPosition[CameraSaveStates.Length];
+                        Array.Copy(CameraSaveStates, MainWindow.appResources.cameraPositions, CameraSaveStates.Length);
                     }
                 }
                 else
@@ -321,7 +310,7 @@ namespace MidiApp
                 if (existing.position.DistanceTo(target) < 1.0)
                 {
                     MainWindow.m_markers.Remove(existing);
-                    ((MainViewModel)(DataContext)).makeMarker();
+                    ((MainViewModel)(DataContext)).MakeMarker();
                     return;
                 }
             }
@@ -333,7 +322,7 @@ namespace MidiApp
 
             MainWindow.m_markers.Add(m);
 
-            ((MainViewModel)(DataContext)).makeMarker();
+            ((MainViewModel)(DataContext)).MakeMarker();
         }
 
         public void SetCameraView(int view)
@@ -341,13 +330,13 @@ namespace MidiApp
             // Load State
             var camera = viewport3D.Camera as PerspectiveCamera;
 
-            if ((view < CameraSaveStates.Length) && (CameraSaveStates[view] != null))
+            if (view < CameraSaveStates.Length)
             {
 
-                camera.Position = CameraSaveStates[view].Location;
-                camera.LookDirection = CameraSaveStates[view].Direction;
-                camera.FieldOfView = CameraSaveStates[view].FOV;
-                camera.UpDirection = CameraSaveStates[view].UpDirection;
+                camera.Position = CameraSaveStates[view].location;
+                camera.LookDirection = (Vector3D)CameraSaveStates[view].direction;
+                camera.FieldOfView = CameraSaveStates[view].fov;
+                camera.UpDirection = (Vector3D)CameraSaveStates[view].upDirection;
             }
         }
 
@@ -413,13 +402,5 @@ namespace MidiApp
             }
              ((MainWindow)App.Current.MainWindow).PointSpots();
         }
-    }
-
-    class CameraState
-    {
-        public Point3D Location { get; set; }
-        public Vector3D Direction { get; set; }
-        public Vector3D UpDirection { get; set; }
-        public double FOV { get; set; }
     }
 }

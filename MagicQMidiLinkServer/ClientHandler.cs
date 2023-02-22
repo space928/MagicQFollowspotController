@@ -3,9 +3,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Runtime.Serialization.Formatters.Binary;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Bson;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Diagnostics;
 
 namespace MidiApp
 {
@@ -31,7 +30,7 @@ namespace MidiApp
         {
             client = p_client;
             mainWindow = p_mainWindow;
-
+            
             try
             {
                 if (clientThread == null)
@@ -42,7 +41,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.ToString());
+                Debug.WriteLine(e.ToString());
             }
 
         }
@@ -56,17 +55,17 @@ namespace MidiApp
         {
             try
             {
-                Console.WriteLine($"Client {clientID} shutting down.");
+                Debug.WriteLine($"Client {clientID} shutting down.");
                 if (clientID >= 0)
                     mainWindow.clientHandlers[clientID] = null;
 
                 client.Shutdown(SocketShutdown.Both);
                 client.Close();
-                Console.WriteLine($"Client {clientID} shut down.");
+                Debug.WriteLine($"Client {clientID} shut down.");
             }
             catch (Exception w)
             {
-                Console.WriteLine($"Client {clientID} shut down error: {w}");
+                Debug.WriteLine($"Client {clientID} shut down error: {w}");
             }
         }
 
@@ -85,7 +84,7 @@ namespace MidiApp
                     switch ((MessageType)buffer[0])
                     {
                         case MessageType.Initialize:
-                            Console.WriteLine("Server Command: " + buffer[0]);
+                            Debug.WriteLine("Server Command: " + buffer[0]);
                             break;
                         case MessageType.ConfigureClient:
                             ConfigureClient(buffer);
@@ -96,14 +95,15 @@ namespace MidiApp
                             break;
 
                         default:
-                            Console.WriteLine("Server Command: " + buffer[0]);
+                            Debug.WriteLine("Server Command: " + buffer[0]);
                             break;
                     }
 
                 }
             }
-            catch
+            catch (Exception e)
             {
+                Debug.WriteLine(e);
                 Shutdown();
             }
 
@@ -120,10 +120,8 @@ namespace MidiApp
                 recieved += client.Receive(rcv_buffer, recieved, res_length - recieved, SocketFlags.None);
             }
 
-            BsonDataReader bsonDataReader = new(new System.IO.MemoryStream(rcv_buffer, false));
-
-            FollowSpot[] newspots = JsonSerializer.Create().Deserialize<FollowSpot[]>(bsonDataReader);
-            //Console.WriteLine("DMX Update:" + newspots[0]);
+            FollowSpot[] newspots = JsonSerializer.Deserialize<FollowSpot[]>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
+            //Debug.WriteLine("DMX Update:" + newspots[0]);
             for (int i = 0; i < MainWindow.FollowSpots.Count; i++)
             {
                 if (MainWindow.FollowSpots[i].MouseControlID == clientID)
@@ -139,7 +137,7 @@ namespace MidiApp
                 }
             }
 
-            mainWindow.updateDMX();
+            mainWindow.UpdateDMX();
         }
 
         private void ConfigureClient(Span<byte> buffer)
@@ -168,21 +166,20 @@ namespace MidiApp
             mainWindow.clientHandlers[clientID]?.Shutdown();
             mainWindow.clientHandlers[clientID] = this;
 
-            Console.WriteLine("Server Command: " + buffer[0]);
-            string resource = JsonConvert.SerializeObject(mainWindow.GetAppResource());
+            Debug.WriteLine("Server Command: " + buffer[0]);
+            byte[] resource = JsonSerializer.SerializeToUtf8Bytes(mainWindow.GetAppResource(), AppResourcesData.JsonSerializerOptions);
 
-            int length = Encoding.Default.GetByteCount(resource);
-            byte[] op_buffer = new byte[length + 4];
+            byte[] op_buffer = new byte[resource.Length + 4];
             op_buffer[0] = 1; // Server Update
-            op_buffer[1] = (byte)(length / 256);
-            op_buffer[2] = (byte)(length & 0xFF);
+            op_buffer[1] = (byte)((resource.Length >> 8) & 0xff);
+            op_buffer[2] = (byte)(resource.Length & 0xff);
             op_buffer[3] = (byte)clientID;
 
-            Encoding.Default.GetBytes(resource, 0, resource.Length, op_buffer, 4);
+            Array.Copy(resource, 0, op_buffer, 4, resource.Length);
             try
             {
                 if (client.Connected)
-                    client.Send(op_buffer, length + 4, SocketFlags.None);
+                    client.Send(op_buffer, op_buffer.Length, SocketFlags.None);
             }
             catch
             {

@@ -224,7 +224,7 @@ namespace MidiApp
                         progress.Report("Searching.");
                         for (var d = 0; d < InputDevice.DeviceCount; d++)
                         {
-                            Console.WriteLine("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
+                            Debug.WriteLine("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
 
                             if (InputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
                             {
@@ -241,7 +241,7 @@ namespace MidiApp
                         progress.Report("Searching..");
                         for (var d = 0; d < OutputDevice.DeviceCount; d++)
                         {
-                            Console.WriteLine("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
+                            Debug.WriteLine("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
                             if (OutputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
                             {
                                 outDevice = new OutputDevice(d);
@@ -396,7 +396,7 @@ namespace MidiApp
                         OscPacket pkt = receiver.Receive();
                         justRecieved = true;
 
-                        Console.WriteLine("OSC Packet: " + pkt.ToString());
+                        Debug.WriteLine("OSC Packet: " + pkt.ToString());
                         activity(1);
                         activityMQ(1);
 
@@ -429,7 +429,7 @@ namespace MidiApp
                                 builder.Data2 = buttons[buttonId] ? 1 : 0;
                                 builder.Build();
                                 outDevice.Send(builder.Result);
-                                // Console.WriteLine("SetButton: " + (buttonId).ToString() + " " + buttons[buttonId]);
+                                // Debug.WriteLine("SetButton: " + (buttonId).ToString() + " " + buttons[buttonId]);
                             }
 
                         }
@@ -477,7 +477,7 @@ namespace MidiApp
                                         outDevice.Send(builder.Result);
                                     }
 
-                                    //Console.WriteLine("Set Fader: " + (playback).ToString() + " " + value);
+                                    //Debug.WriteLine("Set Fader: " + (playback).ToString() + " " + value);
                                 }
 
                             }
@@ -603,7 +603,7 @@ namespace MidiApp
 
         public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            Console.WriteLine("Mouse position" + e.GetPosition(this));
+            Debug.WriteLine("Mouse position" + e.GetPosition(this));
         }
 
         private void Window_Loaded(object source, RoutedEventArgs e)
@@ -797,7 +797,7 @@ namespace MidiApp
 
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
-            //Console.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
+            //Debug.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
             if (spotsOnMouseControl())
             {
                 ArtNetactivity(1);
@@ -823,7 +823,7 @@ namespace MidiApp
                         //                        int p = (dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address];
                         //                        int t = (dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2];
 
-                        //Console.WriteLine("P: {0}, T:{1}", p, t);
+                        //Debug.WriteLine("P: {0}, T:{1}", p, t);
 
                         //}
 
@@ -906,7 +906,7 @@ namespace MidiApp
         {
 
             activity(0);
-            Console.WriteLine("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
+            Debug.WriteLine("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
             if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 < 10))
             {
                 sender.Send(new OscMessage("/pb/" + e.Message.Data1, e.Message.Data2 / 127.0f));
@@ -947,7 +947,7 @@ namespace MidiApp
                     }
 
                     sender.Send(new OscMessage("/rpc", "\\07," + (attribute) + "," + (delta) + "H"));
-                    //Console.WriteLine("Controller: " + "/rpc " + "\\07, " + (attribute) + ", " + (delta) + "," + ((encoderState[e.Message.Data1 - 10]) ? "1" : "0") + "H");
+                    //Debug.WriteLine("Controller: " + "/rpc " + "\\07, " + (attribute) + ", " + (delta) + "," + ((encoderState[e.Message.Data1 - 10]) ? "1" : "0") + "H");
                 }
                 else
                 {
@@ -957,10 +957,10 @@ namespace MidiApp
                         delta *= 2;
                     }
                     sender.Send(new OscMessage("/rpc", "\\08," + (attribute) + "," + (delta) + "H"));
-                    //Console.WriteLine("Controller: " +"/rpc " + "\\08, " + (attribute) + ", " + (delta) + "," +((encoderState[e.Message.Data1 - 10]) ?"1":"0")+ "H");
+                    //Debug.WriteLine("Controller: " +"/rpc " + "\\08, " + (attribute) + ", " + (delta) + "," +((encoderState[e.Message.Data1 - 10]) ?"1":"0")+ "H");
                 }
 
-                //Console.WriteLine("Controller: " + e.Message.Data1 + ":" + e.Message.Data2);
+                //Debug.WriteLine("Controller: " + e.Message.Data1 + ":" + e.Message.Data2);
 
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 < 16) && (e.Message.Data2 == 127))
@@ -987,7 +987,7 @@ namespace MidiApp
                 buttons[e.Message.Data1 - 16] = !buttons[e.Message.Data1 - 16];
 
                 sender.Send(new OscMessage("/exec/" + (e.Message.Data1 - 15), buttons[e.Message.Data1 - 16] ? 1 : 0));
-                //  Console.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
+                //  Debug.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 16) && (e.Message.Data1 <= 39) && (e.Message.Data2 == 0))
             {
@@ -998,7 +998,7 @@ namespace MidiApp
                 builder.Data2 = buttons[e.Message.Data1 - 16] ? 1 : 0;
                 builder.Build();
                 outDevice.Send(builder.Result);
-                // Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                // Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
                 //                sender.Send(new OscMessage("/feedback/exec"));
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 >= 50))
@@ -1010,7 +1010,7 @@ namespace MidiApp
                 }
                 buttons[e.Message.Data1 - 16] = true;
                 selectedPlayback = e.Message.Data1 - 39;
-                Console.WriteLine("selectedPlayback: " + selectedPlayback);
+                Debug.WriteLine("selectedPlayback: " + selectedPlayback);
                 builder.Command = ChannelCommand.NoteOn;
                 for (int j = 0; j < 9; j++)
                 {
@@ -1019,7 +1019,7 @@ namespace MidiApp
                     builder.Build();
                     outDevice.Send(builder.Result);
                 }
-                //  Console.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
+                //  Debug.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 == 0))
             {
@@ -1033,7 +1033,7 @@ namespace MidiApp
                     builder.Build();
                     outDevice.Send(builder.Result);
                 }
-                //Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                //Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 49) && (e.Message.Data1 <= 54) && (e.Message.Data2 >= 50))
             {
@@ -1063,7 +1063,7 @@ namespace MidiApp
                     }
                 }
 
-                //Console.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                //Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
                 //                sender.Send(new OscMessage("/feedback/exec"));
 
             }

@@ -8,24 +8,21 @@ namespace MidiApp
     [Serializable]
     public class FollowSpot : INotifyPropertyChanged
     {
-        private double pan;
-        private double tilt;
-
         [NonSerialized]
         private int mouseControlID = -1;
-
         [NonSerialized]
-        private bool LeadSpot = false;
+        private bool leadSpot = false;
+        [field: NonSerialized]
+        public event PropertyChangedEventHandler PropertyChanged;
 
+        private double pan;
+        private double tilt;
         private int zoom = 128;  // Megapointe mode 2: Channel 30
 
         private double heightOffset = 0.0;
 
         private Point3D target;
         private Point3D currentTarget;
-
-        [field: NonSerialized]
-        public event PropertyChangedEventHandler PropertyChanged;
 
         public Point3D Location { get; set; }
         public int Head { get; set; }
@@ -44,7 +41,7 @@ namespace MidiApp
         public double Pan { get => pan; set { pan = value; OnPropertyChanged(); } }
         public double Tilt { get => tilt; set { tilt = value; OnPropertyChanged(); } }
         public int MouseControlID { get => mouseControlID; set { mouseControlID = value; OnPropertyChanged(); } }
-        public bool IsLeadSpot { get => LeadSpot; set { LeadSpot = value; OnPropertyChanged(); } }
+        public bool IsLeadSpot { get => leadSpot; set { leadSpot = value; OnPropertyChanged(); } }
         public int Zoom { get => zoom; set { zoom = value; OnPropertyChanged(); } }
         public double HeightOffset { get => heightOffset; set { heightOffset = value; OnPropertyChanged(); } }
 

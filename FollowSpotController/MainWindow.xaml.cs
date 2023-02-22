@@ -15,17 +15,16 @@ using Haukcode.ArtNet.Packets;
 using Haukcode.ArtNet.Sockets;
 using Haukcode.Sockets;
 using System.Text;
-using System.Runtime.Serialization.Formatters.Binary;
+using System.Text.Json;
 using System.IO;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Bson;
+using System.Text.Json.Nodes;
 
 namespace MidiApp
 {
     public partial class MainWindow : AdonisUI.Controls.AdonisWindow
     {
         public static int clientID = -1;
-        public static dynamic AppResources;
+        public static AppResourcesData appResources;
 
         public static List<FollowSpot> m_spots = new List<FollowSpot>();
         public static List<Marker> m_markers = new List<Marker>();
@@ -63,54 +62,51 @@ namespace MidiApp
             context = SynchronizationContext.Current;
         }
 
-        public void updateResources()
+        public void UpdateResources()
         {
-            ARTNET_RXIPAddress = IPAddress.Parse((string)AppResources.Network.ArtNet.RXIP);
-            ARTNET_RXSubNetMask = IPAddress.Parse((string)AppResources.Network.ArtNet.RXSubNetMask);
-            ARTNET_RXUniverse = (int)AppResources.Network.ArtNet.Universe;
+            ARTNET_RXIPAddress = IPAddress.Parse((string)appResources.network.artNet.rxIP);
+            ARTNET_RXSubNetMask = IPAddress.Parse((string)appResources.network.artNet.rxSubNetMask);
+            ARTNET_RXUniverse = appResources.network.artNet.universe;
 
             m_spots.Clear();
 
-            foreach (dynamic v in AppResources.Lights)
+            foreach (var v in appResources.lights)
             {
 
-                FollowSpot spot = new FollowSpot();
-                spot.Head = v.Head;
-                spot.Universe = v.Universe;
-                spot.Address = v.Address;
-                spot.IsLeadSpot = false;
-
-                Point3D p;
-                switch ((int)v.Bar)
+                FollowSpot spot = new()
                 {
-                    case 0: p = new Point3D((double)v.XOffset, 0.0, (double)AppResources.Bar0Height + 0.1); break;
-                    case -1: p = new Point3D((double)v.XOffset, (double)AppResources.BarAudienceOffset, (double)AppResources.BarAudienceHeight + 0.1); break;
-                    case 1: p = new Point3D((double)v.XOffset, (double)AppResources.Bar1Offset, (double)AppResources.Bar1Height + 0.1); break;
-                    case 2: p = new Point3D((double)v.XOffset, (double)AppResources.Bar2Offset, (double)AppResources.Bar2Height + 0.1); break;
-                    default: p = new Point3D((double)v.XOffset, (double)AppResources.Bar3Offset, (double)AppResources.Bar3Height + 0.1); break;
+                    Head = v.head,
+                    Universe = v.universe,
+                    Address = v.address,
+                    IsLeadSpot = false
+                };
+                if (v.bar < 0 && v.bar >= appResources.lightingBars.Length)
+                {
+                    MessageBox.Show($"Light with head number {v.head} is assigned to an invalid bar: {v.bar}! There are only {appResources.lightingBars.Length} bars defined!", 
+                        "Invalid Configuration!", MessageBoxButton.OK, MessageBoxImage.Stop);
+                    Environment.Exit(-1);
                 }
-                spot.Location = p;
+                var bar = appResources.lightingBars[v.bar];
+                spot.Location = new Point3D(v.xOffset, bar.offset, bar.height + 0.1);
 
                 m_spots.Add(spot);
             }
 
-            if (AppResources.Markers !=null)
-                foreach (dynamic v in AppResources.Markers)
-                {
-                    Marker m = new();
-                    m.clientID = clientID;
-                    m.markerID = m_markers.Count;
-                    m.position = new Point3D(1, 2, 3);
-                }
-
+            /*foreach (var v in appResources.markers)
+            {
+                Marker m = new();
+                m.clientID = clientID;
+                m.markerID = m_markers.Count;
+                m.position = new Point3D(1, 2, 3);
+            }*/
 
             context.Post(delegate (object dummy)
             {
                 m_threeDWindow?.Close();
 
                 m_threeDWindow = new ThreeD();
-                m_threeDWindow.setActive(false);
-                m_threeDWindow.grab();
+                m_threeDWindow.SetActive(false);
+                m_threeDWindow.Grab();
                 FollwSpot_dataGrid.ItemsSource = m_spots;
                 m_threeDWindow?.UpdateModel();
             }, null);
@@ -136,7 +132,7 @@ namespace MidiApp
 
             }
 
-            System.IO.File.WriteAllText(resourceFileName, Newtonsoft.Json.JsonConvert.SerializeObject(m_markers));
+            System.IO.File.WriteAllText(resourceFileName, JsonSerializer.Serialize(m_markers, AppResourcesData.JsonSerializerOptions));
         }
 
         public void LoadMarkers()
@@ -144,22 +140,12 @@ namespace MidiApp
             try
             {
                 var res = File.ReadAllText(resourceFileName);
-                dynamic markers = JsonConvert.DeserializeObject(res);
+                var markers = JsonSerializer.Deserialize<Marker[]>(res, AppResourcesData.JsonSerializerOptions);
 
                 if (markers!= null)
                 {
                     m_markers.Clear();
-                    foreach (dynamic v in markers)
-                    {
-                        Marker m = new()
-                        {
-                            clientID = v.clientID,
-                            markerID = v.markerID
-                        };
-                        string[] coords = ((string)v.position).Split(',');
-                        m.position = new Point3D(double.Parse(coords[0]), double.Parse(coords[1]), double.Parse(coords[2]));
-                        m_markers.Add(m);
-                    }
+                    m_markers.AddRange(markers);
                 }
 
             }
@@ -179,7 +165,7 @@ namespace MidiApp
             int hi = Convert.ToInt32(Math.Floor(hue / 60)) % 6;
             double f = hue / 60 - Math.Floor(hue / 60);
 
-            value = value * 255;
+            value *= 255;
             byte v = Convert.ToByte(value);
             byte p = Convert.ToByte(value * (1 - saturation));
             byte q = Convert.ToByte(value * (1 - f * saturation));
@@ -340,7 +326,7 @@ namespace MidiApp
 
         public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            Console.WriteLine("Mouse position" + e.GetPosition(this));
+            Debug.WriteLine("Mouse position" + e.GetPosition(this));
         }
 
         private void Window_Loaded(object source, RoutedEventArgs e)
@@ -406,7 +392,7 @@ namespace MidiApp
 
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
-            //Console.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
+            //Debug.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
             if (LeadSpot < 0)
             {
                 ArtNetactivity(1);
@@ -460,7 +446,7 @@ namespace MidiApp
             if (m_threeDWindow == null)
             {
                 m_threeDWindow = new ThreeD();
-                m_threeDWindow.grab();
+                m_threeDWindow.Grab();
             }
             else
             {
@@ -565,55 +551,25 @@ namespace MidiApp
             }
         }
 
-        public void UpdateDMX(byte[] packet)
-        {
-            ArtNetSequence++;
-
-            m_TXsocket.Send(new ArtNetDmxPacket
-            {
-                Sequence = ArtNetSequence,
-                Physical = 1,
-                Universe = (short)ARTNET_RXUniverse,
-                DmxData = packet
-            });
-            ArtNetactivity(2);
-        }
-
         public void UpdateDMX()
         {
-            //byte[] packet = new byte[512];
-
-            //foreach (Follow_Spot spot in m_spots)
-            //{
-            //    int PanDMX = (int)Math.Round((((spot.Pan + 270.0) / 540.0) * 65535.0),0);
-            //    int TiltDMX = (int)Math.Round((((spot.Tilt + 135.0) / 270.0) * 65535.0),0);
-
-            //    packet[spot.Address - 1] = (byte)(PanDMX / 256);
-            //    packet[spot.Address] = (byte)(PanDMX % 256);
-            //    packet[spot.Address + 1] = (byte)(TiltDMX / 256);
-            //    packet[spot.Address + 2] = (byte)(TiltDMX % 256);
-            //}
-
-            JsonSerializer clientMessageSerializer = new();
-            MemoryStream clientMessageStream = new();
-            BsonDataWriter clientMessageWriter = new(clientMessageStream);
-            clientMessageSerializer.Serialize(clientMessageWriter, m_spots);
-            byte[] buffer = new byte[clientMessageStream.Length+3];
-            buffer[0] = 2; // Position Update
-            buffer[1] = (byte)(clientMessageStream.Length / 256);
-            buffer[2] = (byte)(clientMessageStream.Length & 0xFF);
-            clientMessageStream.ToArray();
-
-            Array.Copy(clientMessageStream.ToArray(), 0, buffer, 3, clientMessageStream.Length);
+            byte[] message = JsonSerializer.SerializeToUtf8Bytes(m_spots, AppResourcesData.JsonSerializerOptions);
+            Span<byte> messageHeader = stackalloc byte[3];
+            messageHeader[0] = 2; // Position Update
+            messageHeader[1] = (byte)(message.Length / 256);
+            messageHeader[2] = (byte)(message.Length & 0xFF);
 
             try
             {
                 if (client.Connected)
-                    client.Send(buffer, (int)clientMessageStream.Length + 3, SocketFlags.None);
+                {
+                    client.Send(messageHeader, SocketFlags.None);
+                    client.Send(message, SocketFlags.None);
+                }
             }
             catch (Exception w)
             {
-                Console.WriteLine("Exceltopm:" + w);
+                Debug.WriteLine("Exception: " + w);
                 client.Close();
             }
 
@@ -652,7 +608,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.ToString());
+                Debug.WriteLine(e.ToString());
             }
         }
 
@@ -694,14 +650,14 @@ namespace MidiApp
                         switch ((MessageType)buffer[0])
                         {
                             case MessageType.Initialize:
-                                Console.WriteLine("Server Command: " + buffer[0]);
+                                Debug.WriteLine("Server Command: " + buffer[0]);
                                 break;
                             case MessageType.ConfigureClient:
                                 {
                                     client.Receive(buffer, 1, 3, SocketFlags.None);
                                     int length = buffer[1] * 256 + buffer[2];
-                                    clientID = (int)buffer[3]+1;
-                                    Console.WriteLine($"Server Update: {buffer[0]}, client ID: {clientID}");
+                                    clientID = buffer[3] + 1;
+                                    Debug.WriteLine($"Server Update: {buffer[0]}, client ID: {clientID}");
 
                                     byte[] rcv_buffer = new byte[length];
                                     int recieved = 0;
@@ -710,16 +666,13 @@ namespace MidiApp
                                         recieved += client.Receive(rcv_buffer, recieved, length - recieved, SocketFlags.None);
                                     }
 
-                                    AppResources = JsonConvert.DeserializeObject(Encoding.Default.GetString(rcv_buffer));
-                                    updateResources();
+                                    appResources = JsonSerializer.Deserialize<AppResourcesData>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
+                                    UpdateResources();
 
-                                    if (context != null)
-                                    {
-                                        context.Post(delegate (object dummy)
+                                    context?.Post(delegate (object dummy)
                                         {
                                             ControllerID.Content = ""+clientID;
                                         }, null);
-                                    }
                                 }
                                 break;
                             case MessageType.SpotUpdate: // Spot position update
@@ -733,12 +686,9 @@ namespace MidiApp
                                         recieved += client.Receive(rcv_buffer, recieved, res_length - recieved, SocketFlags.None);
                                     }
 
-                                    JsonSerializer clientMessageSerializer = new();
-                                    using MemoryStream clientMessageStream = new System.IO.MemoryStream(rcv_buffer, false);
-                                    using BsonDataReader clientMessageReader = new(clientMessageStream);
-                                    FollowSpot[] newspots = clientMessageSerializer.Deserialize<FollowSpot[]>(clientMessageReader);
+                                    var newspots = JsonSerializer.Deserialize<FollowSpot[]>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
 
-                                    //Console.WriteLine("DMX Update:" + newspots[0]);
+                                    //Debug.WriteLine("DMX Update:" + newspots[0]);
                                     for (int i = 0; i < m_spots.Count; i++)
                                     {
                                         if (m_spots[i].MouseControlID != clientID)
@@ -763,10 +713,7 @@ namespace MidiApp
                                         recieved += client.Receive(rcv_buffer, recieved, res_length - recieved, SocketFlags.None);
                                     }
 
-                                    JsonSerializer clientMessageSerializer = new();
-                                    using MemoryStream clientMessageStream = new System.IO.MemoryStream(rcv_buffer, false);
-                                    using BsonDataReader clientMessageReader = new(clientMessageStream);
-                                    var message = clientMessageSerializer.Deserialize<ClientMesage>(clientMessageReader);
+                                    var message = JsonSerializer.Deserialize<ClientMesage>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
 
                                     if (m_threeDWindow != null)
                                     {
@@ -787,7 +734,7 @@ namespace MidiApp
                                                         }
                                                     }
                                                 }
-                                                ((MainViewModel)(m_threeDWindow.DataContext)).updateLights();
+                                                ((MainViewModel)(m_threeDWindow.DataContext)).UpdateLights();
                                                 if (message.message.Length > 0)
                                                 {
                                                     m_threeDWindow.MessagePopup.Content = message.message;
@@ -803,7 +750,7 @@ namespace MidiApp
                                 break;
 
                             default:
-                                Console.WriteLine("Server Command: " + buffer[0]);
+                                Debug.WriteLine("Server Command: " + buffer[0]);
                                 break;
                         }
 
@@ -813,13 +760,13 @@ namespace MidiApp
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Socket Exception:" + e);
+                    Debug.WriteLine("Socket Exception:" + e);
                     try
                     {
                         client.Close();
                     } catch (Exception e2)
                     {
-                        Console.WriteLine("Socket Exception2:" + e2);
+                        Debug.WriteLine("Socket Exception2:" + e2);
                     }
 
                     context?.Post(delegate (object dummy)
@@ -851,12 +798,5 @@ namespace MidiApp
         ConfigureClient = 1,
         SpotUpdate = 2,         // Spot position update
         Message = 3            //Message box
-    }
-
-    public class Marker
-    {
-        public Point3D position;
-        public int clientID;
-        public int markerID;
     }
 }
