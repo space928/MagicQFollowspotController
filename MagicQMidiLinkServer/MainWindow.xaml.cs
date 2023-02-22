@@ -1,23 +1,22 @@
-﻿using System;
+﻿using Haukcode.ArtNet.Packets;
+using Haukcode.ArtNet.Sockets;
+using Haukcode.Sockets;
+using Rug.Osc;
+using Sanford.Multimedia.Midi;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
-using Haukcode.ArtNet.Packets;
-using Haukcode.ArtNet.Sockets;
-using Haukcode.Sockets;
-using Rug.Osc;
-using Sanford.Multimedia.Midi;
-using System.IO;
 using ErrorEventArgs = Sanford.Multimedia.ErrorEventArgs;
-using System.Text.Json;
-using System.Windows.Interop;
 
 namespace MidiApp
 {
@@ -145,13 +144,14 @@ namespace MidiApp
             {
                 string res = File.ReadAllText(resourceFileName);
                 File.WriteAllText(resourceFileName + ".bak", res);
-            } catch (FileNotFoundException)
+            }
+            catch (FileNotFoundException)
             {
 
             }
 
             JsonSerializerOptions options = new(AppResourcesData.JsonSerializerOptions)
-            { 
+            {
                 WriteIndented = true,
             };
 
@@ -166,19 +166,21 @@ namespace MidiApp
                 var data = JsonSerializer.Deserialize<AppResourcesData>(res, AppResourcesData.JsonSerializerOptions);
                 if (data.fileFormatVersion != AppResourcesData.FILE_FORMAT_VERSION)
                 {
-                    MessageBox.Show($"Resource file has an invalid file format version: {data.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.", 
+                    MessageBox.Show($"Resource file has an invalid file format version: {data.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.",
                         "Resource File Version Error", MessageBoxButton.OK, MessageBoxImage.Stop);
                     Environment.Exit(-1);
                 }
                 return data;
-            }  catch (JsonException e)
+            }
+            catch (JsonException e)
             {
                 MessageBox.Show("Couldn't parse resource file\n" + e, "Resource File Parse Error", MessageBoxButton.OK, MessageBoxImage.Stop);
                 Environment.Exit(-1);
                 return default;
-            } catch (FileNotFoundException)
+            }
+            catch (FileNotFoundException)
             {
-                MessageBox.Show("Cannot find resource file\n" + resourceFileName + "\nAn empty resource file will be created!", "File Not Found", 
+                MessageBox.Show("Cannot find resource file\n" + resourceFileName + "\nAn empty resource file will be created!", "File Not Found",
                     MessageBoxButton.OK, MessageBoxImage.Stop);
                 appResources = new();
                 SaveAppResource();
@@ -1537,7 +1539,7 @@ namespace MidiApp
                         packet[spot.Address + (spot.FixtureType.panLowChannel - 1)] = (byte)(PanDMX % 256);
                         packet[spot.Address + (spot.FixtureType.tiltLowChannel - 2)] = (byte)(TiltDMX / 256);
                         packet[spot.Address + (spot.FixtureType.tiltLowChannel - 1)] = (byte)(TiltDMX % 256);
-                        if(spot.FixtureType.zoomControl)
+                        if (spot.FixtureType.zoomControl)
                             packet[spot.Address + (spot.FixtureType.zoomChannel - 2)] = (byte)(spot.Zoom);
                     }
                 }

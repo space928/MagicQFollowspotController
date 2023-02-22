@@ -9,14 +9,13 @@
 
 namespace MidiApp
 {
+    using HelixToolkit.Wpf;
     using System.Collections.Generic;
     using System.ComponentModel;
     using System.Runtime.CompilerServices;
     using System.Windows;
     using System.Windows.Media;
     using System.Windows.Media.Media3D;
-
-    using HelixToolkit.Wpf;
 
     /// <summary>
     /// Provides a ViewModel for the Main window.
@@ -77,7 +76,7 @@ namespace MidiApp
             // Create a mesh builder and add a box to it
             var meshBuilder = new MeshBuilder(false, false);
 
-            meshBuilder.AddQuad(new (0, 0, 0), new(10, 0, 0), new(10, 10, 0), new(0, 10, 0));
+            meshBuilder.AddQuad(new(0, 0, 0), new(10, 0, 0), new(10, 10, 0), new(0, 10, 0));
 
             // Create a mesh from the builder (and freeze it)
             var mesh = meshBuilder.ToMesh(true);
@@ -161,12 +160,12 @@ namespace MidiApp
 
             mb.AddTriangleFan(points3D, normals);
 
-            m_Theatre = new GeometryModel3D 
-            { 
-                Geometry = mb.ToMesh(), 
-                Transform = new TranslateTransform3D(0, 0, 0), 
-                Material = blueMaterial, 
-                BackMaterial = null 
+            m_Theatre = new GeometryModel3D
+            {
+                Geometry = mb.ToMesh(),
+                Transform = new TranslateTransform3D(0, 0, 0),
+                Material = blueMaterial,
+                BackMaterial = null
             };
             m_Theatre.SetName("Theatre");
             modelGroup.Children.Add(m_Theatre);
@@ -188,12 +187,12 @@ namespace MidiApp
 
 
                 mb.AddBox(new(0, 0, 0), sz.X, sz.Y, sz.Z);
-                m_Box = new GeometryModel3D 
-                { 
-                    Geometry = mb.ToMesh(), 
-                    Transform = new MatrixTransform3D(transform), 
-                    Material = blueMaterial, 
-                    BackMaterial = null 
+                m_Box = new GeometryModel3D
+                {
+                    Geometry = mb.ToMesh(),
+                    Transform = new MatrixTransform3D(transform),
+                    Material = blueMaterial,
+                    BackMaterial = null
                 };
                 m_Box.SetName("Box");
                 m_BoxesModelGroup.Children.Add(m_Box);
@@ -202,17 +201,17 @@ namespace MidiApp
             modelGroup.Children.Add(m_BoxesModelGroup);
 
             mb = new(true);
-            foreach(var bar in res.lightingBars)
+            foreach (var bar in res.lightingBars)
             {
                 mb.AddBox(new Point3D(0, bar.offset, bar.height + 0.1), bar.width, .1, .1);
             }
 
-            m_Bars = new GeometryModel3D 
-            { 
-                Geometry = mb.ToMesh(), 
-                Transform = new TranslateTransform3D(0, 0, 0), 
-                Material = blueMaterial, 
-                BackMaterial = null 
+            m_Bars = new GeometryModel3D
+            {
+                Geometry = mb.ToMesh(),
+                Transform = new TranslateTransform3D(0, 0, 0),
+                Material = blueMaterial,
+                BackMaterial = null
             };
             m_Bars.SetName("bars");
             modelGroup.Children.Add(m_Bars);
@@ -239,12 +238,12 @@ namespace MidiApp
                 var colour = spot.IsLeadSpot ? yellowMaterial : redMaterial;
                 MeshBuilder mb = new(true);
                 mb.AddBox(spot.Location, 0.2, 0.2, 0.2);
-                var light = new GeometryModel3D 
-                { 
-                    Geometry = mb.ToMesh(), 
-                    Transform = new TranslateTransform3D(0, 0, 0), 
-                    Material = colour, 
-                    BackMaterial = null 
+                var light = new GeometryModel3D
+                {
+                    Geometry = mb.ToMesh(),
+                    Transform = new TranslateTransform3D(0, 0, 0),
+                    Material = colour,
+                    BackMaterial = null
                 };
                 light.SetName("Lights");
                 m_Lights.Children.Add(light);
@@ -267,12 +266,12 @@ namespace MidiApp
                 mb.AddSphere(marker.position, 0.2);
             }
 
-            m_Markers = new GeometryModel3D 
-            { 
-                Geometry = mb.ToMesh(), 
-                Transform = new TranslateTransform3D(0, 0, 0), 
-                Material = yellowMaterial, 
-                BackMaterial = null 
+            m_Markers = new GeometryModel3D
+            {
+                Geometry = mb.ToMesh(),
+                Transform = new TranslateTransform3D(0, 0, 0),
+                Material = yellowMaterial,
+                BackMaterial = null
             };
             m_Markers.SetName("Markers");
             if (Model != null)

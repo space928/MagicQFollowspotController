@@ -1,9 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Data;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
 
 namespace MidiApp
@@ -22,7 +17,7 @@ namespace MidiApp
 
                 if (e.Args.Length >= 2)
                 {
-                    MidiApp.MainWindow.clientID = Int32.Parse (e.Args[1]);
+                    MidiApp.MainWindow.clientID = Int32.Parse(e.Args[1]);
                 }
             }
             else
