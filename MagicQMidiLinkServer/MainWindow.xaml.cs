@@ -47,7 +47,9 @@ namespace MidiApp
 
 
         public static List<FollowSpot> FollowSpots { get; } = new();
-        public static AppResourcesData appResources;
+        public static AppResourcesData AppResources { get => appResources; }
+
+        private static AppResourcesData appResources;
 
         private OscSender sender;
         private OscReceiver receiver;
@@ -84,6 +86,8 @@ namespace MidiApp
         {
             InitializeComponent();
 
+            Logger.Log("Starting Followspot Server...");
+
             buttons = new bool[256];
             faders = new float[256];
             encoderState = new bool[256];
@@ -108,7 +112,7 @@ namespace MidiApp
                 attributes.Add(attributeNames[i], i);
             }
 
-            appResources = GetAppResource();
+            ReloadAppResources();
             m_ResourceLoader_Thread = new Thread(new ThreadStart(ResourceLoaderLoop));
             m_ResourceLoader_Thread.IsBackground = true;
             m_ResourceLoader_Thread.Start();
@@ -126,6 +130,7 @@ namespace MidiApp
             catch (Exception e)
             {
                 MessageBox.Show("Cannot parse resource file\n" + e.Message, "Resource File Problem", MessageBoxButton.OK, MessageBoxImage.Stop);
+                Logger.Log("Cannot parse resource file\n" + e, Severity.FATAL);
                 Close();
             }
         }
@@ -158,7 +163,7 @@ namespace MidiApp
             File.WriteAllText(resourceFileName, JsonSerializer.Serialize(appResources, options));
         }
 
-        public AppResourcesData GetAppResource()
+        public bool ReloadAppResources()
         {
             try
             {
@@ -168,24 +173,33 @@ namespace MidiApp
                 {
                     MessageBox.Show($"Resource file has an invalid file format version: {data.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.",
                         "Resource File Version Error", MessageBoxButton.OK, MessageBoxImage.Stop);
+                    Logger.Log($"Resource file has an invalid file format version: {data.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.", Severity.FATAL);
                     Environment.Exit(-1);
                 }
-                return data;
+                Logger.Log("Updated app resources!");
+                appResources = data;
+                return true;
             }
             catch (JsonException e)
             {
                 MessageBox.Show("Couldn't parse resource file\n" + e, "Resource File Parse Error", MessageBoxButton.OK, MessageBoxImage.Stop);
-                Environment.Exit(-1);
-                return default;
+                // Environment.Exit(-1);
+                Logger.Log("Couldn't parse resource file\n" + e, Severity.WARNING);
+                return false;
             }
             catch (FileNotFoundException)
             {
                 MessageBox.Show("Cannot find resource file\n" + resourceFileName + "\nAn empty resource file will be created!", "File Not Found",
                     MessageBoxButton.OK, MessageBoxImage.Stop);
+                Logger.Log("Cannot find resource file\n" + resourceFileName + "\nAn empty resource file will be created!", Severity.FATAL);
                 appResources = new();
                 SaveAppResource();
                 Environment.Exit(-1);
-                return default;
+                return false;
+            } catch (IOException)
+            {
+                Logger.Log("Encountered IO exception while loading resources!", Severity.WARNING);
+                return false;
             }
         }
 
@@ -201,8 +215,12 @@ namespace MidiApp
 
                     if (latestTime > time)
                     {
-                        appResources = GetAppResource();
-                        time = latestTime;
+                        Thread.Sleep(200);
+                        if (ReloadAppResources())
+                        {
+                            time = latestTime;
+                            
+                        }
                     }
                     else
                     {
@@ -228,7 +246,7 @@ namespace MidiApp
                         progress.Report("Searching.");
                         for (var d = 0; d < InputDevice.DeviceCount; d++)
                         {
-                            Debug.WriteLine("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
+                            Logger.Log("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
 
                             if (InputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
                             {
@@ -245,7 +263,7 @@ namespace MidiApp
                         progress.Report("Searching..");
                         for (var d = 0; d < OutputDevice.DeviceCount; d++)
                         {
-                            Debug.WriteLine("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
+                            Logger.Log("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
                             if (OutputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
                             {
                                 outDevice = new OutputDevice(d);
@@ -540,7 +558,7 @@ namespace MidiApp
                         OscPacket pkt = receiver.Receive();
                         justRecieved = true;
 
-                        Debug.WriteLine("OSC Packet: " + pkt.ToString());
+                        Logger.Log("OSC Packet: " + pkt.ToString());
                         Activity(1);
                         ActivityMQ(1);
 
@@ -574,7 +592,7 @@ namespace MidiApp
                                 };
                                 builder.Build();
                                 outDevice.Send(builder.Result);
-                                // Debug.WriteLine("SetButton: " + (buttonId).ToString() + " " + buttons[buttonId]);
+                                // Logger.Log("SetButton: " + (buttonId).ToString() + " " + buttons[buttonId]);
                             }
 
                         }
@@ -622,7 +640,7 @@ namespace MidiApp
                                         outDevice.Send(builder.Result);
                                     }
 
-                                    //Debug.WriteLine("Set Fader: " + (playback).ToString() + " " + value);
+                                    //Logger.Log("Set Fader: " + (playback).ToString() + " " + value);
                                 }
 
                             }
@@ -749,7 +767,7 @@ namespace MidiApp
                                     }
                                     buttons[selected_pb + 39 - 16] = true;
                                     selectedPlayback = selected_pb;
-                                    Debug.WriteLine("selectedPlayback: " + selectedPlayback);
+                                    Logger.Log("selectedPlayback: " + selectedPlayback);
                                     builder.Command = ChannelCommand.NoteOn;
                                     for (int j = 0; j < 9; j++)
                                     {
@@ -766,7 +784,7 @@ namespace MidiApp
                 }
                 catch (System.Exception e)
                 {
-                    Debug.WriteLine("Exception Thrown" + e);
+                    Logger.Log("Exception Thrown" + e);
                 }
 
                 try
@@ -855,7 +873,7 @@ namespace MidiApp
 
         public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            Debug.WriteLine("Mouse position" + e.GetPosition(this));
+            Logger.Log("Mouse position" + e.GetPosition(this));
         }
 
         private void Window_Loaded(object source, RoutedEventArgs e)
@@ -1000,6 +1018,7 @@ namespace MidiApp
             {
                 MessageBox.Show(ex.Message, "Error!",
                     MessageBoxButton.OK, MessageBoxImage.Stop);
+                Logger.Log(ex, Severity.FATAL);
                 Close();
             }
 
@@ -1045,7 +1064,7 @@ namespace MidiApp
 
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
-            //Debug.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
+            //Logger.Log($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
             if (!SpotsOnMouseControl())
             {
                 ArtNetactivity(1);
@@ -1087,7 +1106,7 @@ namespace MidiApp
                         //                        int p = (dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address];
                         //                        int t = (dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2];
 
-                        //Debug.WriteLine("P: {0}, T:{1}", p, t);
+                        //Logger.Log("P: {0}, T:{1}", p, t);
 
                         //}
 
@@ -1187,13 +1206,14 @@ namespace MidiApp
         private void inDevice_Error(object source, ErrorEventArgs e)
         {
             MessageBox.Show(e.Error.Message, "Error!", MessageBoxButton.OK, MessageBoxImage.Stop);
+            Logger.Log(e.Error, Severity.ERROR);
         }
 
         private void HandleChannelMessageReceived(object source, ChannelMessageEventArgs e)
         {
 
             Activity(0);
-            Debug.WriteLine("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
+            Logger.Log("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
             if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 < 10))
             {
                 sender.Send(new OscMessage("/pb/" + e.Message.Data1, e.Message.Data2 / 127.0f));
@@ -1234,7 +1254,7 @@ namespace MidiApp
                     }
 
                     sender.Send(new OscMessage("/rpc", "\\07," + (attribute) + "," + (delta) + "H"));
-                    //Debug.WriteLine("Controller: " + "/rpc " + "\\07, " + (attribute) + ", " + (delta) + "," + ((encoderState[e.Message.Data1 - 10]) ? "1" : "0") + "H");
+                    //Logger.Log("Controller: " + "/rpc " + "\\07, " + (attribute) + ", " + (delta) + "," + ((encoderState[e.Message.Data1 - 10]) ? "1" : "0") + "H");
                 }
                 else
                 {
@@ -1244,10 +1264,10 @@ namespace MidiApp
                         delta *= 2;
                     }
                     sender.Send(new OscMessage("/rpc", "\\08," + (attribute) + "," + (delta) + "H"));
-                    //Debug.WriteLine("Controller: " +"/rpc " + "\\08, " + (attribute) + ", " + (delta) + "," +((encoderState[e.Message.Data1 - 10]) ?"1":"0")+ "H");
+                    //Logger.Log("Controller: " +"/rpc " + "\\08, " + (attribute) + ", " + (delta) + "," +((encoderState[e.Message.Data1 - 10]) ?"1":"0")+ "H");
                 }
 
-                //Debug.WriteLine("Controller: " + e.Message.Data1 + ":" + e.Message.Data2);
+                //Logger.Log("Controller: " + e.Message.Data1 + ":" + e.Message.Data2);
 
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 < 16) && (e.Message.Data2 == 127))
@@ -1274,7 +1294,7 @@ namespace MidiApp
                 buttons[e.Message.Data1 - 16] = !buttons[e.Message.Data1 - 16];
 
                 sender.Send(new OscMessage("/exec/" + (e.Message.Data1 - 15), buttons[e.Message.Data1 - 16] ? 1 : 0));
-                //  Debug.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
+                //  Logger.Log("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 16) && (e.Message.Data1 <= 39) && (e.Message.Data2 == 0))
             {
@@ -1285,7 +1305,7 @@ namespace MidiApp
                 builder.Data2 = buttons[e.Message.Data1 - 16] ? 1 : 0;
                 builder.Build();
                 outDevice.Send(builder.Result);
-                // Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                // Logger.Log("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
                 //                sender.Send(new OscMessage("/feedback/exec"));
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 >= 50))
@@ -1297,7 +1317,7 @@ namespace MidiApp
                 }
                 buttons[e.Message.Data1 - 16] = true;
                 selectedPlayback = e.Message.Data1 - 39;
-                Debug.WriteLine("selectedPlayback: " + selectedPlayback);
+                Logger.Log("selectedPlayback: " + selectedPlayback);
                 builder.Command = ChannelCommand.NoteOn;
                 for (int j = 0; j < 9; j++)
                 {
@@ -1306,7 +1326,7 @@ namespace MidiApp
                     builder.Build();
                     outDevice.Send(builder.Result);
                 }
-                //  Debug.WriteLine("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
+                //  Logger.Log("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 == 0))
             {
@@ -1320,7 +1340,7 @@ namespace MidiApp
                     builder.Build();
                     outDevice.Send(builder.Result);
                 }
-                //Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                //Logger.Log("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
             }
             else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 49) && (e.Message.Data1 <= 54) && (e.Message.Data2 >= 50))
             {
@@ -1350,7 +1370,7 @@ namespace MidiApp
                     }
                 }
 
-                //Debug.WriteLine("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
+                //Logger.Log("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
                 //                sender.Send(new OscMessage("/feedback/exec"));
 
             }
@@ -1582,7 +1602,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e.ToString());
+                Logger.Log(e.ToString(), Severity.FATAL);
             }
         }
 
@@ -1596,9 +1616,9 @@ namespace MidiApp
                     allDone.Reset();
 
                     // Start an asynchronous socket to listen for connections.  
-                    Debug.WriteLine("Waiting for a connection...");
+                    Logger.Log("Waiting for a connection...");
                     Socket client = listener.Accept();
-                    Debug.WriteLine("Connected ...");
+                    Logger.Log("Connected ...");
                     ClientHandler ch = new ClientHandler(client, this);
 
                     ch.Start();
@@ -1606,7 +1626,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e.ToString());
+                Logger.Log(e.ToString(), Severity.FATAL);
             }
         }
 

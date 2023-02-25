@@ -60,6 +60,8 @@ namespace MidiApp
 
         public void UpdateResources()
         {
+            Logger.Log("Updating app resources...");
+
             ARTNET_RXIPAddress = IPAddress.Parse((string)appResources.network.artNet.rxIP);
             ARTNET_RXSubNetMask = IPAddress.Parse((string)appResources.network.artNet.rxSubNetMask);
             ARTNET_RXUniverse = appResources.network.artNet.universe;
@@ -80,6 +82,7 @@ namespace MidiApp
                 {
                     MessageBox.Show($"Light with head number {v.head} is assigned to an invalid bar: {v.bar}! There are only {appResources.lightingBars.Length} bars defined!",
                         "Invalid Configuration!", MessageBoxButton.OK, MessageBoxImage.Stop);
+                    Logger.Log($"Light with head number {v.head} is assigned to an invalid bar: {v.bar}! There are only {appResources.lightingBars.Length} bars defined!", Severity.FATAL);
                     Environment.Exit(-1);
                 }
                 var bar = appResources.lightingBars[v.bar];
@@ -323,12 +326,12 @@ namespace MidiApp
 
         public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            Debug.WriteLine("Mouse position" + e.GetPosition(this));
+            Logger.Log("Mouse position" + e.GetPosition(this));
         }
 
         private void Window_Loaded(object source, RoutedEventArgs e)
         {
-
+            Logger.Log("Starting followspot client...");
             context = SynchronizationContext.Current;
 
             try
@@ -357,6 +360,7 @@ namespace MidiApp
             {
                 MessageBox.Show(ex.Message, "Error!",
                     MessageBoxButton.OK, MessageBoxImage.Stop);
+                Logger.Log(ex, Severity.FATAL);
                 Close();
             }
 
@@ -389,7 +393,7 @@ namespace MidiApp
 
         void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
         {
-            //Debug.WriteLine($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
+            //Logger.Log($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
             if (LeadSpot < 0)
             {
                 ArtNetactivity(1);
@@ -566,7 +570,7 @@ namespace MidiApp
             }
             catch (Exception w)
             {
-                Debug.WriteLine("Exception: " + w);
+                Logger.Log("Exception: " + w);
                 client.Close();
             }
 
@@ -605,7 +609,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e.ToString());
+                Logger.Log(e.ToString(), Severity.FATAL);
             }
         }
 
@@ -647,14 +651,14 @@ namespace MidiApp
                         switch ((MessageType)buffer[0])
                         {
                             case MessageType.Initialize:
-                                Debug.WriteLine("Server Command: " + buffer[0]);
+                                Logger.Log("Server Command: " + buffer[0]);
                                 break;
                             case MessageType.ConfigureClient:
                                 {
                                     client.Receive(buffer, 1, 3, SocketFlags.None);
                                     int length = buffer[1] * 256 + buffer[2];
                                     clientID = buffer[3] + 1;
-                                    Debug.WriteLine($"Server Update: {buffer[0]}, client ID: {clientID}");
+                                    Logger.Log($"Server Update: {buffer[0]}, client ID: {clientID}");
 
                                     byte[] rcv_buffer = new byte[length];
                                     int recieved = 0;
@@ -685,7 +689,7 @@ namespace MidiApp
 
                                     var newspots = JsonSerializer.Deserialize<FollowSpot[]>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
 
-                                    //Debug.WriteLine("DMX Update:" + newspots[0]);
+                                    //Logger.Log("DMX Update:" + newspots[0]);
                                     for (int i = 0; i < m_spots.Count; i++)
                                     {
                                         if (m_spots[i].MouseControlID != clientID)
@@ -747,7 +751,7 @@ namespace MidiApp
                                 break;
 
                             default:
-                                Debug.WriteLine("Server Command: " + buffer[0]);
+                                Logger.Log("Server Command: " + buffer[0]);
                                 break;
                         }
 
@@ -757,14 +761,14 @@ namespace MidiApp
                 }
                 catch (Exception e)
                 {
-                    Debug.WriteLine("Socket Exception:" + e);
+                    Logger.Log("Socket Exception:" + e, Severity.ERROR);
                     try
                     {
                         client.Close();
                     }
                     catch (Exception e2)
                     {
-                        Debug.WriteLine("Socket Exception2:" + e2);
+                        Logger.Log("Socket Exception2:" + e2, Severity.ERROR);
                     }
 
                     context?.Post(delegate (object dummy)

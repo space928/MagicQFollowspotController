@@ -1,109 +1,145 @@
 {
-  "fileFormatVersion": 8,
+  "fileFormatVersion": 9,
   "theatrePhysicalData": {
-    "width": 18.75,
-    "length": 26,
-    "roof": 10,
-    "stairHeight": 3.9,
-    "stairStart": 3,
-    "stairLength": 12.9,
-    "stageHeight": 1.0,
-    "stageStart": -1,
-    "stageWidth": 12,
-    "stageDepth": 3
+    "width": 16.068,
+    "roof": 8,
+    "stairHeight": 3.5,
+    "stairStart": 3.2,
+    "stairLength": 9.0,
+    "stageHeight": 0.1,
+    "stageStart": 0.0,
+    "stageWidth": 10.50,
+    "stageDepth": 10.68,
+    "stageCurveDepth": 0.0
   },
   "lightingBars": [
     {
-      "height": 6.0,
+      // FOH 1
+      "height": 9.45,
       "width": 15,
-      "offset": -5.85
+      "offset": -12.977
     },
     {
-      "height": 5.53,
+      // FOH 2
+      "height": 9.45,
       "width": 15,
-      "offset": 0
+      "offset": -5.649
     },
     {
-      "height": 5.09,
-      "width": 15,
-      "offset": 3.8
+      // LX 1
+      "height": 8.45,
+      "width": 12,
+      "offset": 1.003
     },
     {
-      "height": 5.06,
-      "width": 15,
-      "offset": 5.7
+      // LX 2
+      "height": 8.45,
+      "width": 12,
+      "offset": 4.192
     },
     {
-      "height": 5.06,
-      "width": 15,
-      "offset": 8.6
+      // LX 3
+      "height": 8.45,
+      "width": 12,
+      "offset": 6.253
+    },
+    {
+      // LX 4
+      "height": 8.45,
+      "width": 12,
+      "offset": 8.686
     }
   ],
-  "boxes": [],
+  "boxes": [
+    {
+      // Prosc
+      "location": {
+        "X": 6.642,
+        "Y": 0.0,
+        "Z": 4.0
+      },
+      "dimensions": {
+        "X": 2.784,
+        "Y": 0.35,
+        "Z": 8.0
+      },
+      "rotation": {
+        "X": 0.0,
+        "Y": 0.0,
+        "Z": 0.0
+      }
+    },
+    {
+      // Prosc
+      "location": {
+        "X": -6.642,
+        "Y": 0.0,
+        "Z": 4.0
+      },
+      "dimensions": {
+        "X": 2.784,
+        "Y": 0.35,
+        "Z": 8.0
+      },
+      "rotation": {
+        "X": 0.0,
+        "Y": 0.0,
+        "Z": 0.0
+      }
+    },
+    {
+      // Steel Deck
+      "location": {
+        "X": -1.2,
+        "Y": 8.407,
+        "Z": 1.1
+      },
+      "dimensions": {
+        "X": 7.2,
+        "Y": 2.4,
+        "Z": 2.2
+      },
+      "rotation": {
+        "X": 0.0,
+        "Y": 0.0,
+        "Z": 0.0
+      }
+    },
+    {
+      // Steel Deck Stairs SR
+      "location": {
+        "X": -4.2,
+        "Y": 6.5,
+        "Z": 0.25
+      },
+      "dimensions": {
+        "X": 1.0,
+        "Y": 3.343,
+        "Z": 2.2
+      },
+      "rotation": {
+        "X": 37.2,
+        "Y": 0.0,
+        "Z": 0.0
+      }
+    }
+  ],
   "lights": [
     {
-      "head": 201,
+      "head": 301,
       "fixture": "ERA300",
-      "universe": 1,
-      "address": 1,
+      "universe": 2,
+      "address": 100,
       "bar": 0,
-      "xOffset": -3.6
+      "xOffset": 3.5
     },
     {
-      "head": 202,
-      "fixture": "MegaPointe",
-      "universe": 1,
-      "address": 1,
+      "head": 302,
+      "fixture": "ERA300",
+      "universe": 2,
+      "address": 121,
       "bar": 0,
-      "xOffset": 0.0
-    },
-    {
-      "head": 203,
-      "Fixture": "MegaPointe",
-      "Universe": 1,
-      "Address": 1,
-      "Bar": 0,
-      "XOffset": 3.6
-    },
-    {
-      "head": 204,
-      "Fixture": "ERA300",
-      "Universe": 1,
-      "Address": 176,
-      "Bar": 2,
-      "XOffset": -4.0
-    },
-    {
-      "head": 205,
-      "Fixture": "MegaPointe",
-      "Universe": 1,
-      "Address": 1,
-      "Bar": 2,
-      "XOffset": 4.0
-    },
-    {
-      "head": 206,
-      "Fixture": "Alpha",
-      "Universe": 1,
-      "Address": 1,
-      "Bar": 3,
-      "XOffset": -2
-    },
-    {
-      "head": 207,
-      "Fixture": "Alpha",
-      "Universe": 1,
-      "Address": 1,
-      "Bar": 3,
-      "XOffset": 2
-    },
-    {
-      "head": 208,
-      "Fixture": "Alpha",
-      "Universe": 4,
-      "Address": 1,
-      "Bar": 4,
-      "XOffset": 0
+      "xOffset": -3.5
     }
   ],
   "network": {

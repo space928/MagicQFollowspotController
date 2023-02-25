@@ -88,6 +88,13 @@ namespace MidiApp
 
             var res = MainWindow.appResources;
             var theatre = res.theatrePhysicalData;
+            if(res.fileFormatVersion != AppResourcesData.FILE_FORMAT_VERSION)
+            {
+                // The version number will default to 0 if the file is not loaded
+                Logger.Log("Warning: No/Corrupt resource data was loaded!");
+                MessageBox.Show("Resources could not be loaded! Check network connection and file version.", "3D Model Cannot Be Loaded", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
             var mb = new MeshBuilder(true, false);
 
@@ -106,11 +113,11 @@ namespace MidiApp
             var p10 = new Point3D(theatre.width / 2, -theatre.stairStart, theatre.roof);
             var p11 = new Point3D(theatre.width / 2, 0, theatre.roof);
 
-            var p12 = new Point3D(-theatre.width / 2, theatre.length - theatre.stairStart - theatre.stairLength, theatre.roof);
-            var p13 = new Point3D(-theatre.width / 2, theatre.length - theatre.stairStart - theatre.stairLength, 0);
+            var p12 = new Point3D(-theatre.width / 2, theatre.stageDepth + theatre.stageStart, theatre.roof);
+            var p13 = new Point3D(-theatre.width / 2, theatre.stageDepth + theatre.stageStart, 0);
 
-            var p14 = new Point3D(theatre.width / 2, theatre.length - theatre.stairStart - theatre.stairLength, 0);
-            var p15 = new Point3D(theatre.width / 2, theatre.length - theatre.stairStart - theatre.stairLength, theatre.roof);
+            var p14 = new Point3D(theatre.width / 2, theatre.stageDepth + theatre.stageStart, 0);
+            var p15 = new Point3D(theatre.width / 2, theatre.stageDepth + theatre.stageStart, theatre.roof);
 
             // Back wall
             mb.AddQuad(p12, p13, p14, p15);
@@ -134,14 +141,14 @@ namespace MidiApp
 
             for (int i = 0; i < stagecurve.Length / 2; i++)
             {
-                points.Add(new Point(stagecurve[i, 0] * theatre.stageWidth / 2, (stagecurve[i, 1] - 1) * theatre.stageDepth - theatre.stageStart));
+                points.Add(new Point(stagecurve[i, 0] * theatre.stageWidth / 2, (stagecurve[i, 1] - 1) * theatre.stageCurveDepth - theatre.stageStart));
             }
 
+            points.Add(new Point(-theatre.width / 2, -theatre.stageStart - theatre.stageCurveDepth));
             points.Add(new Point(-theatre.width / 2, -theatre.stageDepth - theatre.stageStart));
-            points.Add(new Point(-theatre.width / 2, -10));
-            points.Add(new Point(theatre.width / 2, -10));
-            points.Add(new Point(theatre.width / 2, -theatre.stageDepth - theatre.stageStart));
-            points.Add(new Point(stagecurve[0, 0] * theatre.stageWidth / 2, (stagecurve[0, 1] - 1) * theatre.stageDepth - theatre.stageStart));
+            points.Add(new Point(theatre.width / 2,  -theatre.stageDepth - theatre.stageStart));
+            points.Add(new Point(theatre.width / 2, -theatre.stageStart - theatre.stageCurveDepth));
+            points.Add(new Point(stagecurve[0, 0] * theatre.stageWidth / 2, (stagecurve[0, 1] - 1) * theatre.stageCurveDepth - theatre.stageStart));
 
             Vector3D xaxis = new(1, 0, 0);
 
@@ -170,10 +177,9 @@ namespace MidiApp
             m_Theatre.SetName("Theatre");
             modelGroup.Children.Add(m_Theatre);
 
-            mb = new(true);
-
             foreach (var boxDef in res.boxes)
             {
+                mb = new(true);
                 Vector3D sz = (Vector3D)boxDef.dimensions;
                 Vector3D pos = (Vector3D)boxDef.location;
                 Vector3D rot = (Vector3D)boxDef.rotation;

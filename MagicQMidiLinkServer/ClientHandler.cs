@@ -39,7 +39,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e.ToString());
+                Logger.Log(e.ToString());
             }
 
         }
@@ -53,17 +53,17 @@ namespace MidiApp
         {
             try
             {
-                Debug.WriteLine($"Client {clientID} shutting down.");
+                Logger.Log($"Client {clientID} shutting down.");
                 if (clientID >= 0)
                     mainWindow.clientHandlers[clientID] = null;
 
                 client.Shutdown(SocketShutdown.Both);
                 client.Close();
-                Debug.WriteLine($"Client {clientID} shut down.");
+                Logger.Log($"Client {clientID} shut down.");
             }
             catch (Exception w)
             {
-                Debug.WriteLine($"Client {clientID} shut down error: {w}");
+                Logger.Log($"Client {clientID} shut down error: {w}", Severity.FATAL);
             }
         }
 
@@ -82,7 +82,7 @@ namespace MidiApp
                     switch ((MessageType)buffer[0])
                     {
                         case MessageType.Initialize:
-                            Debug.WriteLine("Server Command: " + buffer[0]);
+                            Logger.Log("Server Command: " + buffer[0]);
                             break;
                         case MessageType.ConfigureClient:
                             ConfigureClient(buffer);
@@ -93,7 +93,7 @@ namespace MidiApp
                             break;
 
                         default:
-                            Debug.WriteLine("Server Command: " + buffer[0]);
+                            Logger.Log("Server Command: " + buffer[0]);
                             break;
                     }
 
@@ -101,7 +101,7 @@ namespace MidiApp
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e);
+                Logger.Log(e, Severity.FATAL);
                 Shutdown();
             }
 
@@ -119,7 +119,7 @@ namespace MidiApp
             }
 
             FollowSpot[] newspots = JsonSerializer.Deserialize<FollowSpot[]>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
-            //Debug.WriteLine("DMX Update:" + newspots[0]);
+            //Logger.Log("DMX Update:" + newspots[0]);
             for (int i = 0; i < MainWindow.FollowSpots.Count; i++)
             {
                 if (MainWindow.FollowSpots[i].MouseControlID == clientID)
@@ -164,8 +164,9 @@ namespace MidiApp
             mainWindow.clientHandlers[clientID]?.Shutdown();
             mainWindow.clientHandlers[clientID] = this;
 
-            Debug.WriteLine("Server Command: " + buffer[0]);
-            byte[] resource = JsonSerializer.SerializeToUtf8Bytes(mainWindow.GetAppResource(), AppResourcesData.JsonSerializerOptions);
+            Logger.Log("Server Command: " + buffer[0]);
+            mainWindow.ReloadAppResources();
+            byte[] resource = JsonSerializer.SerializeToUtf8Bytes(MainWindow.AppResources, AppResourcesData.JsonSerializerOptions);
 
             byte[] op_buffer = new byte[resource.Length + 4];
             op_buffer[0] = 1; // Server Update
@@ -181,6 +182,7 @@ namespace MidiApp
             }
             catch
             {
+                Logger.Log("Client socket exception!", Severity.FATAL);
                 Shutdown();
             }
         }

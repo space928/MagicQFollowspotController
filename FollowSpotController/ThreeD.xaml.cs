@@ -86,8 +86,9 @@ namespace MidiApp
         {
             ((MainViewModel)(DataContext)).UpdateModel();
 
-            Array.Copy(MainWindow.appResources.cameraPositions, CameraSaveStates,
-                Math.Min(CameraSaveStates.Length, MainWindow.appResources.cameraPositions.Length));
+            if(MainWindow.appResources.cameraPositions != null)
+                Array.Copy(MainWindow.appResources.cameraPositions, CameraSaveStates,
+                    Math.Min(CameraSaveStates.Length, MainWindow.appResources.cameraPositions.Length));
         }
 
         private static void SetCursor(int x, int y)
@@ -98,7 +99,7 @@ namespace MidiApp
         private void Window_Activated(object sender, EventArgs e)
         {
             //            SetCursor((int)Width / 2, (int)Height / 2);
-            //   Debug.WriteLine("Catured: " + CaptureMouse());
+            //   Logger.Log("Catured: " + CaptureMouse());
 
             //            vertLine.Height = Height;
             //            horizLine.Width = Width;
