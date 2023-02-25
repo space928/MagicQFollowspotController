@@ -62,6 +62,13 @@ namespace MidiApp
         {
             Logger.Log("Updating app resources...");
 
+            if (appResources.fileFormatVersion != AppResourcesData.FILE_FORMAT_VERSION)
+            {
+                MessageBox.Show($"Resource file has an invalid file format version: {appResources.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.",
+                    "Resource File Version Error", MessageBoxButton.OK, MessageBoxImage.Stop);
+                Logger.Log($"Resource file has an invalid file format version: {appResources.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.", Severity.FATAL);
+            }
+
             ARTNET_RXIPAddress = IPAddress.Parse((string)appResources.network.artNet.rxIP);
             ARTNET_RXSubNetMask = IPAddress.Parse((string)appResources.network.artNet.rxSubNetMask);
             ARTNET_RXUniverse = appResources.network.artNet.universe;
@@ -532,7 +539,7 @@ namespace MidiApp
                     spot.CurrentTarget += spot.Velocity;
                     spot.Velocity *= 0.5;
 
-                    Point3D tgt_offsetted = new(spot.CurrentTarget.X, spot.CurrentTarget.Y, spot.CurrentTarget.Z + spot.HeightOffset);
+                    Point3D tgt_offsetted = new(spot.CurrentTarget.X, spot.CurrentTarget.Y, spot.CurrentTarget.Z + spot.HeightOffset + appResources.theatrePhysicalData.heightOffset);
 
                     Vector3D p = tgt_offsetted - spot.Location;
                     Point3D direction = Spherical.ToSpherical(-p.Y, p.X, p.Z);
@@ -661,10 +668,10 @@ namespace MidiApp
                                     Logger.Log($"Server Update: {buffer[0]}, client ID: {clientID}");
 
                                     byte[] rcv_buffer = new byte[length];
-                                    int recieved = 0;
-                                    while (recieved < length)
+                                    int received = 0;
+                                    while (received < length)
                                     {
-                                        recieved += client.Receive(rcv_buffer, recieved, length - recieved, SocketFlags.None);
+                                        received += client.Receive(rcv_buffer, received, length - received, SocketFlags.None);
                                     }
 
                                     appResources = JsonSerializer.Deserialize<AppResourcesData>(rcv_buffer, AppResourcesData.JsonSerializerOptions);

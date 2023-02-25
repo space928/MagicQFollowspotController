@@ -1,5 +1,5 @@
 {
-  "fileFormatVersion": 9,
+  "fileFormatVersion": 10,
   "theatrePhysicalData": {
     "width": 16.068,
     "roof": 8,
@@ -10,7 +10,8 @@
     "stageStart": 0.0,
     "stageWidth": 10.50,
     "stageDepth": 10.68,
-    "stageCurveDepth": 0.0
+    "stageCurveDepth": 0.0,
+    "heightOffset": 0.8
   },
   "lightingBars": [
     {
@@ -131,7 +132,7 @@
       "universe": 2,
       "address": 100,
       "bar": 0,
-      "xOffset": 3.5
+      "xOffset": -3.5
     },
     {
       "head": 302,
@@ -139,7 +140,7 @@
       "universe": 2,
       "address": 121,
       "bar": 0,
-      "xOffset": -3.5
+      "xOffset": 3.5
     }
   ],
   "network": {
@@ -351,8 +352,10 @@
       "zoomControl": true,
       "irisControl": false,
       "panInvert": true,
-      "tiltInvert": false,
+      "tiltInvert": true,
       "panTiltSwap": false,
+      "panOffset": 0.0,
+      "tiltOffset": 0.0,
       "panRange": 540.0,
       "tiltRange": 260.0,
       "zoomMin": 28.0,

@@ -146,13 +146,14 @@ namespace MidiApp
             if (pt != null)
             {
                 Point3D point = pt;
+                Point3D pointHeightCorrected = new (pt.X, pt.Y, pt.Z + MainWindow.appResources.theatrePhysicalData.heightOffset);
 
-                Transform3D at = new TranslateTransform3D(((Vector3D)point));
+                Transform3D at = new TranslateTransform3D(((Vector3D)pointHeightCorrected));
 
                 m_spotSphere.Transform = at;
 
                 var mb = new MeshBuilder(true);
-                mb.AddCylinder(point, MainWindow.m_spots[spot_number].Location, .1, 8);
+                mb.AddCylinder(pointHeightCorrected, MainWindow.m_spots[spot_number].Location, .1, 8);
 
                 double movement = (point - MainWindow.m_spots[spot_number].Target).Length;
 

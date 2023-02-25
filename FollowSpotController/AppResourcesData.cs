@@ -8,7 +8,7 @@ namespace MidiApp
     [Serializable]
     public struct AppResourcesData
     {
-        public const int FILE_FORMAT_VERSION = 9;
+        public const int FILE_FORMAT_VERSION = 10;
 
         public int fileFormatVersion = FILE_FORMAT_VERSION;
         public TheatrePhysicalData theatrePhysicalData;
@@ -62,6 +62,8 @@ namespace MidiApp
         public float stageWidth;
         public float stageDepth;
         public float stageCurveDepth;
+
+        public float heightOffset;
     }
 
     [Serializable]
@@ -143,6 +145,8 @@ namespace MidiApp
         public bool panInvert;
         public bool tiltInvert;
         public bool panTiltSwap;
+        public float panOffset;
+        public float tiltOffset;
 
         public float panRange;
         public float tiltRange;

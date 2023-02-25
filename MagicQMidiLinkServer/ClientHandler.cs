@@ -67,6 +67,17 @@ namespace MidiApp
             }
         }
 
+        public void ReconfigureClient()
+        {
+            try
+            {
+                SendAppResources();
+            } catch (Exception e)
+            {
+                Logger.Log($"Couldn't reconfigure client {clientID} error: {e}", Severity.ERROR);
+            }
+        }
+
         void ClientLoop()
         {
             Span<byte> buffer = new byte[1024];
@@ -119,6 +130,11 @@ namespace MidiApp
             }
 
             FollowSpot[] newspots = JsonSerializer.Deserialize<FollowSpot[]>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
+            if(newspots.Length != MainWindow.FollowSpots.Count)
+            {
+                Logger.Log($"Spot update contained {newspots.Length} followspots, expected {MainWindow.FollowSpots.Count}!", Severity.ERROR);
+                return;
+            }
             //Logger.Log("DMX Update:" + newspots[0]);
             for (int i = 0; i < MainWindow.FollowSpots.Count; i++)
             {
@@ -165,6 +181,11 @@ namespace MidiApp
             mainWindow.clientHandlers[clientID] = this;
 
             Logger.Log("Server Command: " + buffer[0]);
+            SendAppResources();
+        }
+
+        private void SendAppResources()
+        {
             mainWindow.ReloadAppResources();
             byte[] resource = JsonSerializer.SerializeToUtf8Bytes(MainWindow.AppResources, AppResourcesData.JsonSerializerOptions);
 

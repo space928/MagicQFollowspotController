@@ -59,7 +59,7 @@ namespace MidiApp
         private InputDevice inDevice = null;
         private OutputDevice outDevice = null;
 
-        private Thread m_Thread = null;
+        private Thread oscListenerThread = null;
         private Thread activity_Thread = null;
         private Thread fsActivity_Thread = null;
         private Thread artNetActivity_Thread = null;
@@ -219,7 +219,11 @@ namespace MidiApp
                         if (ReloadAppResources())
                         {
                             time = latestTime;
-                            
+                            LoadLightDefinitions();
+                            foreach (var client in clientHandlers)
+                            {
+                                client?.ReconfigureClient();
+                            }
                         }
                     }
                     else
@@ -543,7 +547,7 @@ namespace MidiApp
                 }, null);
         }
 
-        void ListenLoop()
+        void OSCListenLoop()
         {
             bool justRecieved = false;
 
@@ -801,7 +805,7 @@ namespace MidiApp
 
         public void SendClientMessage(int clientID, string message, string spots, int timeout)
         {
-            ClientMesage msg = new();
+            ClientMessage msg = new();
 
             msg.clientID = clientID;
             msg.message = WebUtility.UrlDecode(message);
@@ -870,7 +874,6 @@ namespace MidiApp
 
         }
 
-
         public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
         {
             Logger.Log("Mouse position" + e.GetPosition(this));
@@ -878,7 +881,6 @@ namespace MidiApp
 
         private void Window_Loaded(object source, RoutedEventArgs e)
         {
-
             context = SynchronizationContext.Current;
 
             if (inDevice == null)
@@ -928,87 +930,19 @@ namespace MidiApp
                     mqConnection_Thread.Start();
                 }
 
-                setupMQListener();
-
-                inDevice.ChannelMessageReceived += HandleChannelMessageReceived;
-                inDevice.SysCommonMessageReceived += HandleSysCommonMessageReceived;
-                inDevice.SysExMessageReceived += HandleSysExMessageReceived;
-                inDevice.SysRealtimeMessageReceived += HandleSysRealtimeMessageReceived;
-                inDevice.Error += new EventHandler<Sanford.Multimedia.ErrorEventArgs>(inDevice_Error);
-
-                if (!MIDI_DEVICE_NAME.Contains("Loop"))
-                    inDevice.StartRecording();
-
-                ChannelMessageBuilder builder = new();
-
-                builder.Command = ChannelCommand.Controller;
-                builder.Data1 = 127;
-                builder.Data2 = 0;
-                builder.Build();
-                outDevice.Send(builder.Result);
-
-                builder.Command = ChannelCommand.ProgramChange;
-                builder.MidiChannel = 1;
-                builder.Data1 = 0;
-                builder.Data2 = 0;
-                builder.Build();
-                outDevice.Send(builder.Result);
-
-                builder.Command = ChannelCommand.Controller;
-
-                for (var i = 0; i < 127; i++)
-                {
-                    builder.Data1 = i;
-                    builder.Data2 = 0;
-                    builder.Build();
-                    outDevice.Send(builder.Result);
-                }
-
-                builder.Command = ChannelCommand.NoteOn;
-                builder.Data1 = 0;
-                builder.Data2 = 1;
-                builder.Build();
-                outDevice.Send(builder.Result);
-
-                for (var i = 0; i < 39; i++)
-                {
-                    builder.Data1 = i;
-                    builder.Data2 = (i == 32) ? 2 : 0;
-                    builder.Build();
-                    outDevice.Send(builder.Result);
-                }
-
-                selectedPlayback = 9;
-
-                builder.Command = ChannelCommand.NoteOn;
-                builder.Data1 = 38;
-                builder.Data2 = 2;
-                builder.Build();
-                outDevice.Send(builder.Result);
+                SetupMQListener();
+                SetupMidiDevice();
+                LoadLightDefinitions();
 
                 ipInputMQ.Content = MQ_IPAddress;
                 ipInputTX.Content = ARTNET_TXIPAddress;
 
-                m_Thread = new(new ThreadStart(ListenLoop));
-                m_Thread.IsBackground = true;
-                m_Thread.Start();
+                oscListenerThread = new(new ThreadStart(OSCListenLoop));
+                oscListenerThread.IsBackground = true;
+                oscListenerThread.Start();
 
-                StartListening(MQ_IPAddress);
-
-                foreach (var v in appResources.lights)
-                {
-                    FollowSpot spot = new()
-                    {
-                        Head = v.head,
-                        Universe = v.universe,
-                        Address = v.address,
-                        MouseControlID = -1
-                    };
-                    spot.SetFixtureType(v.fixture, appResources);
-                    spot.Location = new Point3D(v.xOffset, appResources.lightingBars[v.bar].offset, appResources.lightingBars[v.bar].height + 0.1);
-
-                    FollowSpots.Add(spot);
-                }
+                StartListeningToClients(MQ_IPAddress);
+                
                 FollwSpot_dataGrid.ItemsSource = FollowSpots;
 
                 ArtNetListner();
@@ -1025,6 +959,83 @@ namespace MidiApp
             // this.Topmost = true;
         }
 
+        private static void LoadLightDefinitions()
+        {
+            FollowSpots.Clear();
+            foreach (var v in appResources.lights)
+            {
+                FollowSpot spot = new()
+                {
+                    Head = v.head,
+                    Universe = v.universe,
+                    Address = v.address,
+                    MouseControlID = -1
+                };
+                spot.SetFixtureType(v.fixture, appResources);
+                spot.Location = new Point3D(v.xOffset, appResources.lightingBars[v.bar].offset, appResources.lightingBars[v.bar].height + 0.1);
+
+                FollowSpots.Add(spot);
+            }
+        }
+
+        private void SetupMidiDevice()
+        {
+            inDevice.ChannelMessageReceived += HandleChannelMessageReceived;
+            inDevice.SysCommonMessageReceived += HandleSysCommonMessageReceived;
+            inDevice.SysExMessageReceived += HandleSysExMessageReceived;
+            inDevice.SysRealtimeMessageReceived += HandleSysRealtimeMessageReceived;
+            inDevice.Error += new EventHandler<Sanford.Multimedia.ErrorEventArgs>(inDevice_Error);
+
+            if (!MIDI_DEVICE_NAME.Contains("Loop"))
+                inDevice.StartRecording();
+
+            ChannelMessageBuilder builder = new();
+
+            builder.Command = ChannelCommand.Controller;
+            builder.Data1 = 127;
+            builder.Data2 = 0;
+            builder.Build();
+            outDevice.Send(builder.Result);
+
+            builder.Command = ChannelCommand.ProgramChange;
+            builder.MidiChannel = 1;
+            builder.Data1 = 0;
+            builder.Data2 = 0;
+            builder.Build();
+            outDevice.Send(builder.Result);
+
+            builder.Command = ChannelCommand.Controller;
+
+            for (var i = 0; i < 127; i++)
+            {
+                builder.Data1 = i;
+                builder.Data2 = 0;
+                builder.Build();
+                outDevice.Send(builder.Result);
+            }
+
+            builder.Command = ChannelCommand.NoteOn;
+            builder.Data1 = 0;
+            builder.Data2 = 1;
+            builder.Build();
+            outDevice.Send(builder.Result);
+
+            for (var i = 0; i < 39; i++)
+            {
+                builder.Data1 = i;
+                builder.Data2 = (i == 32) ? 2 : 0;
+                builder.Build();
+                outDevice.Send(builder.Result);
+            }
+
+            selectedPlayback = 9;
+
+            builder.Command = ChannelCommand.NoteOn;
+            builder.Data1 = 38;
+            builder.Data2 = 2;
+            builder.Build();
+            outDevice.Send(builder.Result);
+        }
 
         public static IEnumerable<(IPAddress Address, IPAddress NetMask)> GetAddressesFromInterfaceType(NetworkInterfaceType? interfaceType = null,
     Func<NetworkInterface, bool> predicate = null)
@@ -1197,8 +1208,8 @@ namespace MidiApp
                 receiver = null;
             }
 
-            if (m_Thread != null)
-                m_Thread.Interrupt();
+            if (oscListenerThread != null)
+                oscListenerThread.Interrupt();
             Application.Current.Shutdown();
 
         }
@@ -1433,28 +1444,14 @@ namespace MidiApp
             }
         }
 
-        private void setupMQListener()
+        private void SetupMQListener()
         {
             int port = 8000;
-            if (receiver != null)
-            {
-                receiver.Dispose();
-            }
+            receiver?.Dispose();
             receiver = new OscReceiver(9000);
             receiver.Connect();
 
-            if (m_Thread != null)
-            {
-                m_Thread.Abort();
-                m_Thread = new(new ThreadStart(ListenLoop));
-                m_Thread.IsBackground = true;
-                m_Thread.Start();
-            }
-
-            if (sender != null)
-            {
-                sender.Dispose();
-            }
+            sender?.Dispose();
 
             sender = new OscSender(MQ_IPAddress, port);
             sender.Connect();
@@ -1540,8 +1537,8 @@ namespace MidiApp
                 {
                     if (universe == spot.Universe)
                     {
-                        double pan = spot.Pan;
-                        double tilt = spot.Tilt;
+                        double pan = spot.Pan + spot.FixtureType.panOffset;
+                        double tilt = spot.Tilt + spot.FixtureType.tiltOffset;
 
                         if (spot.FixtureType.panTiltSwap)
                             (pan, tilt) = (tilt, pan);
@@ -1573,7 +1570,7 @@ namespace MidiApp
         Thread listenThread;
         Socket listener;
 
-        public void StartListening(IPAddress ipAddress)
+        public void StartListeningToClients(IPAddress ipAddress)
         {
             // Establish the local endpoint for the socket.  
             // The DNS name of the computer  
@@ -1594,7 +1591,7 @@ namespace MidiApp
 
                 if (listenThread == null)
                 {
-                    listenThread = new Thread(new ThreadStart(listenLoop));
+                    listenThread = new Thread(new ThreadStart(ClientListenLoop));
                     listenThread.IsBackground = true;
                     listenThread.Start();
                 }
@@ -1606,7 +1603,7 @@ namespace MidiApp
             }
         }
 
-        public void listenLoop()
+        public void ClientListenLoop()
         {
             try
             {
@@ -1633,7 +1630,7 @@ namespace MidiApp
     }
 
     [Serializable]
-    public struct ClientMesage
+    public struct ClientMessage
     {
         public int clientID;
         public string message;
