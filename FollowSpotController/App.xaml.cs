@@ -13,7 +13,7 @@ namespace MidiApp
 
             if (e.Args.Length >= 1)
             {
-                MidiApp.MainWindow.serverIP_Addres = e.Args[0];
+                MidiApp.MainWindow.ServerIPAddress = e.Args[0];
 
                 if (e.Args.Length >= 2)
                 {

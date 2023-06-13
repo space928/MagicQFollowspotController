@@ -22,35 +22,55 @@ namespace MidiApp
         public static int clientID = -1;
         public static AppResourcesData appResources;
 
-        public static List<FollowSpot> m_spots = new List<FollowSpot>();
-        public static List<Marker> m_markers = new List<Marker>();
-        public static string serverIP_Addres;
-        public ThreeD m_threeDWindow = null;
+        private static readonly List<FollowSpot> spots = new();
+        private static readonly List<Marker> markers = new();
+        private static string serverIPAddress;
+        private ThreeD threeDWindow = null;
 
-        private Thread m_Thread = null;
-        private Thread activity_Thread = null;
-        private Thread ArtNetactivity_Thread = null;
-        private ArtNetSocket m_socket = null;
+        private Thread artNetactivity_Thread = null;
         private ArtNetSocket m_TXsocket = null;
 
         private Thread mqConnection_Thread = null;
 
+        private IPAddress ARTNET_RXIPAddress = null;
+        private IPAddress ARTNET_RXSubNetMask = null;
+        private int ARTNET_RXUniverse = 0;
+
         private string resourceFileName = @"Markers.json";
-        private Thread m_ResourceLoader_Thread = null;
+
+        private Brush GreenFill = null;
+        private Brush RedFill = null;
+        private Brush WhiteFill = null;
+        private Stopwatch artNetactivityTimer = Stopwatch.StartNew();
+        private Stopwatch connectionTimer = Stopwatch.StartNew();
+
+        private System.Timers.Timer smoothingTimer = null;
+        private readonly object timerLock = new();
 
         SynchronizationContext context;
 
+        /// <summary>
+        /// The ID of the spot that's currently active.
+        /// </summary>
         public static int LeadSpot
         {
             get
             {
-                for (int i = 0; i < m_spots.Count; i++)
-                    if (m_spots[i].IsLeadSpot)
+                for (int i = 0; i < spots.Count; i++)
+                    if (spots[i].IsLeadSpot)
                         return i;
 
                 return -1;
             }
         }
+
+        public static List<FollowSpot> Spots => spots;
+        public static List<Marker> Markers => markers; 
+        public static string ServerIPAddress 
+        { 
+            get { return serverIPAddress; } 
+            set { serverIPAddress = value; } 
+        } 
 
         public MainWindow()
         {
@@ -69,15 +89,14 @@ namespace MidiApp
                 Logger.Log($"Resource file has an invalid file format version: {appResources.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.", Severity.FATAL);
             }
 
-            ARTNET_RXIPAddress = IPAddress.Parse((string)appResources.network.artNet.rxIP);
-            ARTNET_RXSubNetMask = IPAddress.Parse((string)appResources.network.artNet.rxSubNetMask);
+            ARTNET_RXIPAddress = IPAddress.Parse(appResources.network.artNet.rxIP);
+            ARTNET_RXSubNetMask = IPAddress.Parse(appResources.network.artNet.rxSubNetMask);
             ARTNET_RXUniverse = appResources.network.artNet.universe;
 
-            m_spots.Clear();
+            spots.Clear();
 
             foreach (var v in appResources.lights)
             {
-
                 FollowSpot spot = new()
                 {
                     Head = v.head,
@@ -85,6 +104,7 @@ namespace MidiApp
                     Address = v.address,
                     IsLeadSpot = false
                 };
+
                 if (v.bar < 0 && v.bar >= appResources.lightingBars.Length)
                 {
                     MessageBox.Show($"Light with head number {v.head} is assigned to an invalid bar: {v.bar}! There are only {appResources.lightingBars.Length} bars defined!",
@@ -95,51 +115,40 @@ namespace MidiApp
                 var bar = appResources.lightingBars[v.bar];
                 spot.Location = new Point3D(v.xOffset, bar.offset, bar.height + 0.1);
 
-                m_spots.Add(spot);
+                spots.Add(spot);
             }
 
-            /*foreach (var v in appResources.markers)
-            {
-                Marker m = new();
-                m.clientID = clientID;
-                m.markerID = m_markers.Count;
-                m.position = new Point3D(1, 2, 3);
-            }*/
-
+            // Force restart the 3D window
             context.Post(delegate (object dummy)
             {
-                m_threeDWindow?.Close();
+                threeDWindow?.Close();
 
-                m_threeDWindow = new ThreeD();
-                m_threeDWindow.SetActive(false);
-                m_threeDWindow.Grab();
-                FollwSpot_dataGrid.ItemsSource = m_spots;
-                m_threeDWindow?.UpdateModel();
+                threeDWindow = new ThreeD();
+                threeDWindow.SetActive(false);
+                threeDWindow.Grab();
+                FollwSpot_dataGrid.ItemsSource = spots;
+                threeDWindow?.UpdateModel();
             }, null);
-
-            m_socket?.Close();
-
-            //ArtNetListner();
         }
-
-        IPAddress ML_IPAddress = IPAddress.Parse(MainWindow.serverIP_Addres);
-        IPAddress ARTNET_RXIPAddress = null;
-        IPAddress ARTNET_RXSubNetMask = null;
-        int ARTNET_RXUniverse = 0;
 
         public void SaveMarkers()
         {
+            string res = null;
             try
             {
-                string res = System.IO.File.ReadAllText(resourceFileName);
-                System.IO.File.WriteAllText(resourceFileName + ".bak", res);
+                res = File.ReadAllText(resourceFileName);
             }
-            catch (FileNotFoundException)
+            catch (FileNotFoundException) { }
+
+            try
             {
-
+                if(res != null)
+                    File.WriteAllText(resourceFileName + ".bak", res);
+                File.WriteAllText(resourceFileName, JsonSerializer.Serialize(markers, AppResourcesData.JsonSerializerOptions));
+            } catch(IOException e)
+            {
+                Logger.Log($"Couldn't save markers: {e}", Severity.ERROR);
             }
-
-            System.IO.File.WriteAllText(resourceFileName, JsonSerializer.Serialize(m_markers, AppResourcesData.JsonSerializerOptions));
         }
 
         public void LoadMarkers()
@@ -151,8 +160,8 @@ namespace MidiApp
 
                 if (markers != null)
                 {
-                    m_markers.Clear();
-                    m_markers.AddRange(markers);
+                    MainWindow.markers.Clear();
+                    MainWindow.markers.AddRange(markers);
                 }
 
             }
@@ -163,40 +172,8 @@ namespace MidiApp
             }
         }
 
-        Brush GreenFill = null;
-        Brush RedFill = null;
-        Brush WhiteFill = null;
-
-        public static Color ColorFromHSV(double hue, double saturation, double value)
-        {
-            int hi = Convert.ToInt32(Math.Floor(hue / 60)) % 6;
-            double f = hue / 60 - Math.Floor(hue / 60);
-
-            value *= 255;
-            byte v = Convert.ToByte(value);
-            byte p = Convert.ToByte(value * (1 - saturation));
-            byte q = Convert.ToByte(value * (1 - f * saturation));
-            byte t = Convert.ToByte(value * (1 - (1 - f) * saturation));
-
-            if (hi == 0)
-                return Color.FromArgb(255, v, t, p);
-            else if (hi == 1)
-                return Color.FromArgb(255, q, v, p);
-            else if (hi == 2)
-                return Color.FromArgb(255, p, v, t);
-            else if (hi == 3)
-                return Color.FromArgb(255, p, q, v);
-            else if (hi == 4)
-                return Color.FromArgb(255, t, p, v);
-            else
-                return Color.FromArgb(255, v, p, q);
-        }
-
-        Stopwatch ArtNetactivityTimer = Stopwatch.StartNew();
-
         void ArtNetActivityMonitor()
         {
-
             while (true)
             {
                 try
@@ -204,7 +181,7 @@ namespace MidiApp
                     Thread.Sleep(100);
                     context?.Post(delegate (object dummy)
                         {
-                            if (ArtNetactivityTimer.ElapsedMilliseconds > 200)
+                            if (artNetactivityTimer.ElapsedMilliseconds > 200)
                             {
                                 ArtNetActivityLED.Fill = WhiteFill;
                             }
@@ -214,23 +191,20 @@ namespace MidiApp
                 {
 
                 }
-
             }
         }
 
         public void ArtNetactivity(int type)
         {
-            ArtNetactivityTimer.Restart();
+            artNetactivityTimer.Restart();
             context?.Post(delegate (object dummy)
                 {
                     ArtNetActivityLED.Fill = GreenFill;
                 }, null);
         }
-
-        Stopwatch connectionTimer = Stopwatch.StartNew();
+        
         void MqConnection_Monitor()
         {
-
             while (true)
             {
                 try
@@ -248,7 +222,6 @@ namespace MidiApp
                 {
 
                 }
-
             }
         }
 
@@ -261,79 +234,9 @@ namespace MidiApp
                 }, null);
         }
 
-        //else if (parts[1].Equals("fspot"))
-        //{
-        //    if (parts.Length >= 2)
-        //    {
-        //        if (parts[2] == "start")
-        //        {
-        //            string ids = msg.ToString();
-        //            int viewID = -1;
-
-        //            if (!ids.EndsWith("/"))
-        //            {
-        //                ids = ids.Substring(ids.LastIndexOf('/') + 1);
-        //                string[] idspot = ids.Split(',');
-
-        //                int headId = Int32.Parse(idspot[0]);
-
-        //                foreach (Follow_Spot spot in m_spots)
-        //                {
-        //                    spot.IsLeadSpot = spot.Head == headId;
-        //                }
-        //                if (idspot.Length > 1)
-        //                {
-        //                    viewID = Int32.Parse(idspot[1]);
-        //                }
-        //            }
-
-        //            context.Post(delegate (object dummy)
-        //            {
-        //                if (m_threeDWindow == null)
-        //                {
-        //                    m_threeDWindow = new ThreeD();
-        //                    m_threeDWindow.grab();
-        //                }
-        //                else
-        //                {
-        //                    m_threeDWindow.Show();
-        //                }
-
-        //                if (viewID > 0)
-        //                {
-        //                    m_threeDWindow.setCameraView(viewID - 1);
-        //                }
-
-        //                if (leadSpot() >= 0)
-        //                {
-        //                    m_threeDWindow.Macro_moveSpot(leadSpot());
-        //                    m_threeDWindow.setActive(true);
-        //                }
-        //                else
-        //                {
-        //                    m_threeDWindow.setActive(false);
-        //                }
-        //            }, null);
-
-        //        }
-        //        else if (parts[2] == "stop")
-        //        {
-        //            foreach (Follow_Spot spot in m_spots)
-        //            {
-        //                spot.IsLeadSpot = false;
-        //            }
-
-        //            if (m_threeDWindow != null)
-        //            {
-        //                context.Post(delegate (object dummy)
-        //                {
-        //                    m_threeDWindow.setActive(false);
-        //                }, null);
-        //            }
-
-        public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
+        public void Destroy3DWindow()
         {
-            Logger.Log("Mouse position" + e.GetPosition(this));
+            threeDWindow = null;
         }
 
         private void Window_Loaded(object source, RoutedEventArgs e)
@@ -347,11 +250,11 @@ namespace MidiApp
                 RedFill = new RadialGradientBrush(Color.FromRgb(0xFF, 0x1D, 0x1D), Color.FromRgb(0xE0, 0x00, 0x00));
                 WhiteFill = new RadialGradientBrush(Color.FromRgb(0x60, 0x80, 0x60), Color.FromRgb(0x20, 0x60, 0x20));
 
-                if (ArtNetactivity_Thread == null)
+                if (artNetactivity_Thread == null)
                 {
-                    ArtNetactivity_Thread = new(new ThreadStart(ArtNetActivityMonitor));
-                    ArtNetactivity_Thread.IsBackground = true;
-                    ArtNetactivity_Thread.Start();
+                    artNetactivity_Thread = new(new ThreadStart(ArtNetActivityMonitor));
+                    artNetactivity_Thread.IsBackground = true;
+                    artNetactivity_Thread.Start();
                 }
 
                 if (mqConnection_Thread == null)
@@ -398,71 +301,23 @@ namespace MidiApp
             }
         }
 
-        void ArtNet_NewPacket(object sender, NewPacketEventArgs<ArtNetPacket> e)
-        {
-            //Logger.Log($"Received ArtNet packet with OpCode: {e.Packet.OpCode} from {e.Source}");
-            if (LeadSpot < 0)
-            {
-                ArtNetactivity(1);
-
-                if (e.Packet.OpCode == Haukcode.ArtNet.ArtNetOpCodes.Dmx)
-                {
-                    ArtNetDmxPacket dmx = (ArtNetDmxPacket)e.Packet;
-                    context.Post(delegate (object dummy)
-                    {
-                        foreach (FollowSpot spot in m_spots)
-                        {
-                            if (dmx.Universe == spot.Universe)
-                            {
-                                spot.Pan = Math.Round(((dmx.DmxData[spot.Address - 1] * 256) + dmx.DmxData[spot.Address]) / 65535.0 * 540.0 - 270.0, 3);
-                                spot.Tilt = Math.Round(((dmx.DmxData[spot.Address + 1] * 256) + dmx.DmxData[spot.Address + 2]) / 65535.0 * 270.0 - 135.0, 3);
-                            }
-                        }
-
-                        m_threeDWindow?.DMX_moveSpot(LeadSpot);
-
-                    }, null);
-
-                    //if ((leadSpot() < 0) && ( (dmx.Universe != (short)ARTNET_RXUniverse)))
-                    //    updateDMX(dmx.DmxData);
-                }
-            }
-
-        }
-        void ArtNetListner()
-        {
-            m_socket = new ArtNetSocket();
-            m_socket.NewPacket += ArtNet_NewPacket;
-            m_socket.Open(ARTNET_RXIPAddress, ARTNET_RXSubNetMask);
-        }
-
         private void Window_Closed(object sender, EventArgs e)
         {
-            //if (receiver != null)
-            //{
-            //    receiver.Close();
-            //    receiver = null;
-            //}
-
-            m_Thread?.Interrupt();
             Application.Current.Shutdown();
-
         }
 
         private void StopButton_Click(object sender, RoutedEventArgs e)
         {
-            if (m_threeDWindow == null)
+            if (threeDWindow == null)
             {
-                m_threeDWindow = new ThreeD();
-                m_threeDWindow.Grab();
+                threeDWindow = new ThreeD();
+                threeDWindow.Grab();
             }
             else
             {
-                m_threeDWindow.Show();
+                threeDWindow.Show();
             }
         }
-
-        Stopwatch FWatch = Stopwatch.StartNew();
 
         private void AdonisWindow_PreviewLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
         {
@@ -485,7 +340,6 @@ namespace MidiApp
 
         }
 
-        private byte ArtNetSequence = 0;
         public void PointSpots()
         {
             //foreach (Follow_Spot spot in m_spots)
@@ -503,27 +357,24 @@ namespace MidiApp
             Smoother(null, null);
         }
 
-        System.Timers.Timer timer = null;
-        readonly object timerLock = new object();
-
         void Smoother(object sender, ElapsedEventArgs e)
         {
             bool isMoving = false;
             lock (timerLock)
             {
-                if (timer == null)
+                if (smoothingTimer == null)
                 {
-                    timer = new System.Timers.Timer();
-                    timer.Elapsed += Smoother;
-                    timer.AutoReset = false;
-                    timer.Interval = 25;
+                    smoothingTimer = new System.Timers.Timer();
+                    smoothingTimer.Elapsed += Smoother;
+                    smoothingTimer.AutoReset = false;
+                    smoothingTimer.Interval = 25;
                 }
                 else
                 {
-                    timer.Stop();
+                    smoothingTimer.Stop();
                 }
 
-                foreach (FollowSpot spot in m_spots)
+                foreach (FollowSpot spot in spots)
                 {
                     double minVelocity = 0.02;
                     Vector3D delta = spot.Target - spot.CurrentTarget;
@@ -554,14 +405,14 @@ namespace MidiApp
 
                 if (isMoving)
                 {
-                    timer.Start();
+                    smoothingTimer.Start();
                 }
             }
         }
 
         public void UpdateDMX()
         {
-            byte[] message = JsonSerializer.SerializeToUtf8Bytes(m_spots, AppResourcesData.JsonSerializerOptions);
+            byte[] message = JsonSerializer.SerializeToUtf8Bytes(spots, AppResourcesData.JsonSerializerOptions);
             Span<byte> messageHeader = stackalloc byte[3];
             messageHeader[0] = 2; // Position Update
             messageHeader[1] = (byte)(message.Length / 256);
@@ -633,7 +484,7 @@ namespace MidiApp
                         }, null);
 
                     // Create a TCP/IP socket.  
-                    IPAddress ipAddress = ML_IPAddress;
+                    IPAddress ipAddress = IPAddress.Parse(serverIPAddress);
                     remoteEP = new IPEndPoint(ipAddress, port);
 
                     client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -697,14 +548,14 @@ namespace MidiApp
                                     var newspots = JsonSerializer.Deserialize<FollowSpot[]>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
 
                                     //Logger.Log("DMX Update:" + newspots[0]);
-                                    for (int i = 0; i < m_spots.Count; i++)
+                                    for (int i = 0; i < spots.Count; i++)
                                     {
-                                        if (m_spots[i].MouseControlID != clientID)
+                                        if (spots[i].MouseControlID != clientID)
                                         {
-                                            m_spots[i].Pan = newspots[i].Pan;
-                                            m_spots[i].Tilt = newspots[i].Tilt;
+                                            spots[i].Pan = newspots[i].Pan;
+                                            spots[i].Tilt = newspots[i].Tilt;
 
-                                            m_spots[i].Target = newspots[i].Target;
+                                            spots[i].Target = newspots[i].Target;
                                         }
                                     }
                                 }
@@ -723,34 +574,34 @@ namespace MidiApp
 
                                     var message = JsonSerializer.Deserialize<ClientMesage>(rcv_buffer, AppResourcesData.JsonSerializerOptions);
 
-                                    if (m_threeDWindow != null)
+                                    if (threeDWindow != null)
                                     {
                                         context?.Post(delegate (object dummy)
                                             {
                                                 int i = 0;
-                                                for (i = 0; i < m_spots.Count; i++)
+                                                for (i = 0; i < spots.Count; i++)
                                                 {
-                                                    m_spots[i].IsLeadSpot = false;
+                                                    spots[i].IsLeadSpot = false;
                                                     for (int j = 0; j < message.spots?.Length; j++)
                                                     {
-                                                        if (m_spots[i].Head == message.spots[j])
+                                                        if (spots[i].Head == message.spots[j])
                                                         {
-                                                            m_spots[i].IsLeadSpot = true;
-                                                            m_spots[i].Zoom = message.zooms[j];
-                                                            m_spots[i].HeightOffset = message.HeightOffsets[j];
+                                                            spots[i].IsLeadSpot = true;
+                                                            spots[i].Zoom = message.zooms[j];
+                                                            spots[i].HeightOffset = message.HeightOffsets[j];
                                                             break;
                                                         }
                                                     }
                                                 }
-                                                ((MainViewModel)(m_threeDWindow.DataContext)).UpdateLights();
+                                                ((MainViewModel)(threeDWindow.DataContext)).UpdateLights();
                                                 if (message.message.Length > 0)
                                                 {
-                                                    m_threeDWindow.MessagePopup.Content = message.message;
-                                                    m_threeDWindow.MessagePopup.Visibility = Visibility.Visible;
+                                                    threeDWindow.MessagePopup.Content = message.message;
+                                                    threeDWindow.MessagePopup.Visibility = Visibility.Visible;
                                                 }
                                                 else
                                                 {
-                                                    m_threeDWindow.MessagePopup.Visibility = Visibility.Hidden;
+                                                    threeDWindow.MessagePopup.Visibility = Visibility.Hidden;
                                                 }
                                             }, null);
                                     }

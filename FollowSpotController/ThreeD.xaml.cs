@@ -112,6 +112,7 @@ namespace MidiApp
             viewport3D.Children.Remove(m_spotSphere);
             viewport3D.Children.Remove(m_beam);
             var pt = new Point3D();
+            bool hasHit = false;
 
             //            ((MainViewModel)(DataContext)).hideLights();
 
@@ -136,6 +137,7 @@ namespace MidiApp
                         mod.Bounds.Equals(((MainViewModel)(DataContext)).m_Theatre.Bounds))
                     {
                         pt = hit.Position;
+                        hasHit = true;
                         break;
                     }
                 }
@@ -143,32 +145,32 @@ namespace MidiApp
 
 
             //pt ?= viewport3D.FindNearestPoint(p);
-            if (pt != null)
+            if (!hasHit)
             {
-                Point3D point = pt;
-                Point3D pointHeightCorrected = new (pt.X, pt.Y, pt.Z + MainWindow.appResources.theatrePhysicalData.heightOffset);
-
-                Transform3D at = new TranslateTransform3D(((Vector3D)pointHeightCorrected));
-
-                m_spotSphere.Transform = at;
-
-                var mb = new MeshBuilder(true);
-                mb.AddCylinder(pointHeightCorrected, MainWindow.m_spots[spot_number].Location, .1, 8);
-
-                double movement = (point - MainWindow.m_spots[spot_number].Target).Length;
-
-                MainWindow.m_spots[spot_number].Target = point;
-
-                ((MeshGeometryVisual3D)m_beam).MeshGeometry = mb.ToMesh();
-
-                // ((MainViewModel)(DataContext)).showLights();
-                viewport3D.Children.Add(m_beam);
-                viewport3D.Children.Add(m_spotSphere);
-                return movement;
+                ((MainViewModel)(DataContext)).ShowLights();
+                return 0.0;
             }
 
-            ((MainViewModel)(DataContext)).ShowLights();
-            return 0.0;
+            Point3D point = pt;
+            Point3D pointHeightCorrected = new (pt.X, pt.Y, pt.Z + MainWindow.appResources.theatrePhysicalData.heightOffset);
+
+            Transform3D at = new TranslateTransform3D(((Vector3D)pointHeightCorrected));
+
+            m_spotSphere.Transform = at;
+
+            var mb = new MeshBuilder(true);
+            mb.AddCylinder(pointHeightCorrected, MainWindow.Spots[spot_number].Location, .1, 8);
+
+            double movement = (point - MainWindow.Spots[spot_number].Target).Length;
+
+            MainWindow.Spots[spot_number].Target = point;
+
+            ((MeshGeometryVisual3D)m_beam).MeshGeometry = mb.ToMesh();
+
+            // ((MainViewModel)(DataContext)).showLights();
+            viewport3D.Children.Add(m_beam);
+            viewport3D.Children.Add(m_spotSphere);
+            return movement;
         }
 
         public double Macro_moveSpot(int spot_number)
@@ -176,9 +178,9 @@ namespace MidiApp
             var p = viewport3D.Camera.Position;
             var v = viewport3D.Camera.LookDirection;
 
-            viewport3D.Camera.Position = MainWindow.m_spots[spot_number].Location;
+            viewport3D.Camera.Position = MainWindow.Spots[spot_number].Location;
 
-            var nv = Spherical.FromSpherical(1, MainWindow.m_spots[spot_number].Tilt, MainWindow.m_spots[spot_number].Pan);
+            var nv = Spherical.FromSpherical(1, MainWindow.Spots[spot_number].Tilt, MainWindow.Spots[spot_number].Pan);
             viewport3D.Camera.LookDirection = (Vector3D)nv;
 
             double moved = MoveSpot(spot_number, new Point(viewport3D.ActualWidth / 2, viewport3D.ActualHeight / 2));
@@ -195,9 +197,9 @@ namespace MidiApp
                 var p = viewport3D.Camera.Position;
                 var v = viewport3D.Camera.LookDirection;
 
-                viewport3D.Camera.Position = MainWindow.m_spots[0].Location;
+                viewport3D.Camera.Position = MainWindow.Spots[0].Location;
 
-                var nv = Spherical.FromSpherical(1, MainWindow.m_spots[0].Tilt, MainWindow.m_spots[0].Pan);
+                var nv = Spherical.FromSpherical(1, MainWindow.Spots[0].Tilt, MainWindow.Spots[0].Pan);
                 viewport3D.Camera.LookDirection = (Vector3D)nv;
 
                 double moved = MoveSpot(0, new Point(viewport3D.ActualWidth / 2, viewport3D.ActualHeight / 2));
@@ -295,13 +297,13 @@ namespace MidiApp
 
         public void PlaceMarker()
         {
-            Point3D target = MainWindow.m_spots[0].Target;
+            Point3D target = MainWindow.Spots[0].Target;
 
-            foreach (Marker existing in MainWindow.m_markers)
+            foreach (Marker existing in MainWindow.Markers)
             {
                 if (existing.position.DistanceTo(target) < 1.0)
                 {
-                    MainWindow.m_markers.Remove(existing);
+                    MainWindow.Markers.Remove(existing);
                     ((MainViewModel)(DataContext)).MakeMarker();
                     return;
                 }
@@ -309,10 +311,10 @@ namespace MidiApp
 
             Marker m = new();
             m.clientID = MainWindow.clientID;
-            m.markerID = MainWindow.m_markers.Count;
+            m.markerID = MainWindow.Markers.Count;
             m.position = target;
 
-            MainWindow.m_markers.Add(m);
+            MainWindow.Markers.Add(m);
 
             ((MainViewModel)(DataContext)).MakeMarker();
         }
@@ -337,11 +339,11 @@ namespace MidiApp
             if (e.LeftButton == MouseButtonState.Pressed && MainWindow.LeadSpot >= 0)
             {
                 double moved = MoveSpot(MainWindow.LeadSpot, e.GetPosition(viewport3D));
-                Point3D p = MainWindow.m_spots[MainWindow.LeadSpot].Target;
+                Point3D p = MainWindow.Spots[MainWindow.LeadSpot].Target;
 
-                for (int i = 0; i < MainWindow.m_spots.Count; i++)
+                for (int i = 0; i < MainWindow.Spots.Count; i++)
                 {
-                    MainWindow.m_spots[i].Target = p;
+                    MainWindow.Spots[i].Target = p;
                 }
 
                 ((MainWindow)App.Current.MainWindow).PointSpots();
@@ -372,23 +374,23 @@ namespace MidiApp
         private void ThreeD1_Closed(object sender, EventArgs e)
         {
             if (App.Current != null && App.Current.MainWindow != null)
-                ((MainWindow)App.Current.MainWindow).m_threeDWindow = null;
+                ((MainWindow)App.Current.MainWindow).Destroy3DWindow();
         }
 
         private void HelixViewport3D_MouseWheel(object sender, MouseWheelEventArgs e)
         {
             e.Handled = false;
-            for (int i = 0; i < MainWindow.m_spots.Count; i++)
+            for (int i = 0; i < MainWindow.Spots.Count; i++)
             {
                 if (e.Delta > 0)
                 {
-                    if (MainWindow.m_spots[i].Zoom < 255)
-                        MainWindow.m_spots[i].Zoom += 1;
+                    if (MainWindow.Spots[i].Zoom < 255)
+                        MainWindow.Spots[i].Zoom += 1;
                 }
                 else if (e.Delta < 0)
                 {
-                    if (MainWindow.m_spots[i].Zoom > 0)
-                        MainWindow.m_spots[i].Zoom -= 1;
+                    if (MainWindow.Spots[i].Zoom > 0)
+                        MainWindow.Spots[i].Zoom -= 1;
                 }
 
             }

@@ -239,7 +239,7 @@ namespace MidiApp
                 ((Model3DGroup)Model).Children.Remove(m_Lights);
 
             m_Lights = new();
-            foreach (FollowSpot spot in MainWindow.m_spots)
+            foreach (FollowSpot spot in MainWindow.Spots)
             {
                 var colour = spot.IsLeadSpot ? yellowMaterial : redMaterial;
                 MeshBuilder mb = new(true);
@@ -267,7 +267,7 @@ namespace MidiApp
             }
             MeshBuilder mb = new(true);
 
-            foreach (Marker marker in MainWindow.m_markers)
+            foreach (Marker marker in MainWindow.Markers)
             {
                 mb.AddSphere(marker.position, 0.2);
             }

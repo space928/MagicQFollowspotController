@@ -1,95 +1,120 @@
 {
-  "fileFormatVersion": 10,
+  "fileFormatVersion": 12,
+  "network": {
+    "magicQIP": "192.168.0.110",
+    "artNet": {
+      "rxIP": "192.168.0.110",
+      "rxSubNetMask": "255.255.254.0",
+      "txIP": "192.168.56.1",
+      "txSubNetMask": "255.255.255.0",
+      "broadcast": true,
+      "universe": 60
+    },
+    "oscRXPort": 8000,
+    "oscTXPort": 9000
+  },
+  "midiControllerSettings": {
+    "midiDeviceName": "X-TOUCH"
+  },
   "theatrePhysicalData": {
     "width": 16.068,
     "roof": 8,
     "stairHeight": 3.5,
     "stairStart": 3.2,
-    "stairLength": 9.0,
+    "stairLength": 9,
     "stageHeight": 0.1,
-    "stageStart": 0.0,
-    "stageWidth": 10.50,
+    "stageStart": 0,
+    "stageWidth": 10.5,
     "stageDepth": 10.68,
-    "stageCurveDepth": 0.0,
+    "stageCurveDepth": 0,
     "heightOffset": 0.8
   },
   "lightingBars": [
     {
-      // FOH 1
-      "height": 9.45,
+      "height": 6,
       "width": 15,
-      "offset": -12.977
+      "offset": -10
     },
     {
-      // FOH 2
       "height": 9.45,
       "width": 15,
       "offset": -5.649
     },
     {
-      // LX 1
       "height": 8.45,
       "width": 12,
       "offset": 1.003
     },
     {
-      // LX 2
       "height": 8.45,
       "width": 12,
       "offset": 4.192
     },
     {
-      // LX 3
       "height": 8.45,
       "width": 12,
       "offset": 6.253
     },
     {
-      // LX 4
       "height": 8.45,
       "width": 12,
       "offset": 8.686
     }
   ],
+  "lights": [
+    {
+      "fixture": "ERA300",
+      "head": 301,
+      "universe": 2,
+      "address": 101,
+      "bar": 0,
+      "xOffset": -5.5
+    },
+    {
+      "fixture": "ERA300",
+      "head": 302,
+      "universe": 2,
+      "address": 1,
+      "bar": 0,
+      "xOffset": 5.5
+    }
+  ],
   "boxes": [
     {
-      // Prosc
       "location": {
         "X": 6.642,
-        "Y": 0.0,
-        "Z": 4.0
+        "Y": 0,
+        "Z": 4
       },
       "dimensions": {
         "X": 2.784,
         "Y": 0.35,
-        "Z": 8.0
+        "Z": 8
       },
       "rotation": {
-        "X": 0.0,
-        "Y": 0.0,
-        "Z": 0.0
+        "X": 0,
+        "Y": 0,
+        "Z": 0
       }
     },
     {
-      // Prosc
       "location": {
         "X": -6.642,
-        "Y": 0.0,
-        "Z": 4.0
+        "Y": 0,
+        "Z": 4
       },
       "dimensions": {
         "X": 2.784,
         "Y": 0.35,
-        "Z": 8.0
+        "Z": 8
       },
       "rotation": {
-        "X": 0.0,
-        "Y": 0.0,
-        "Z": 0.0
+        "X": 0,
+        "Y": 0,
+        "Z": 0
       }
     },
     {
-      // Steel Deck
       "location": {
         "X": -1.2,
         "Y": 8.407,
@@ -101,62 +126,30 @@
         "Z": 2.2
       },
       "rotation": {
-        "X": 0.0,
-        "Y": 0.0,
-        "Z": 0.0
+        "X": 0,
+        "Y": 0,
+        "Z": 0
       }
     },
     {
-      // Steel Deck Stairs SR
       "location": {
         "X": -4.2,
         "Y": 6.5,
         "Z": 0.25
       },
       "dimensions": {
-        "X": 1.0,
+        "X": 1,
         "Y": 3.343,
         "Z": 2.2
       },
       "rotation": {
         "X": 37.2,
-        "Y": 0.0,
-        "Z": 0.0
+        "Y": 0,
+        "Z": 0
       }
     }
   ],
-  "lights": [
-    {
-      "head": 301,
-      "fixture": "ERA300",
-      "universe": 2,
-      "address": 100,
-      "bar": 0,
-      "xOffset": -3.5
-    },
-    {
-      "head": 302,
-      "fixture": "ERA300",
-      "universe": 2,
-      "address": 121,
-      "bar": 0,
-      "xOffset": 3.5
-    }
-  ],
-  "network": {
-    "magicQIP": "10.128.136.226",
-    "artNet": {
-      "rxIP": "10.128.136.226",
-      "rxSubNetMask": "255.255.255.224",
-      // This address MUST be different to the one MagicQ is on, but it can be any address on the system.
-      "txIP": "172.28.208.1",
-      "txSubNetMask": "255.255.240.0",
-      "broadcast": true,
-      "universe": 60
-    }
-  },
   "cameraPositions": [
-    // Cam 1
     {
       "location": {
         "X": 0.792569116181018,
@@ -173,9 +166,8 @@
         "Y": 0.456193398757378,
         "Z": 0.889803265166196
       },
-      "fov": 45.0
+      "fov": 45
     },
-    // Cam 2
     {
       "location": {
         "X": 16.809620478981,
@@ -192,9 +184,8 @@
         "Y": 0.294708458934366,
         "Z": 0.920607186831483
       },
-      "fov": 45.0
+      "fov": 45
     },
-    // Cam 3
     {
       "location": {
         "X": -82.056511056995,
@@ -211,9 +202,8 @@
         "Y": 0.0639946452964028,
         "Z": 0.984807753012211
       },
-      "fov": 45.0
+      "fov": 45
     },
-    // Cam 4
     {
       "location": {
         "X": 17.9477022658366,
@@ -230,10 +220,9 @@
         "Y": 0.0403016966089667,
         "Z": 0.38292546009466
       },
-      "fov": 45.0
+      "fov": 45
     }
   ],
-  "markers": [],
   "fixtureProfiles": [
     {
       "name": "Pointe",
@@ -249,12 +238,14 @@
       "panInvert": false,
       "tiltInvert": false,
       "panTiltSwap": false,
-      "panRange": 540.0,
-      "tiltRange": 265.0,
-      "zoomMin": 42.0,
-      "zoomMax": 3.0,
-      "irisMin": 0.0,
-      "irisMax": 100.0
+      "panOffset": 0,
+      "tiltOffset": 0,
+      "panRange": 540,
+      "tiltRange": 265,
+      "zoomMin": 42,
+      "zoomMax": 3,
+      "irisMin": 0,
+      "irisMax": 100
     },
     {
       "name": "MegaPointe",
@@ -270,12 +261,14 @@
       "panInvert": false,
       "tiltInvert": false,
       "panTiltSwap": false,
-      "panRange": 540.0,
-      "tiltRange": 265.0,
-      "zoomMin": 42.0,
-      "zoomMax": 3.0,
-      "irisMin": 0.0,
-      "irisMax": 100.0
+      "panOffset": 0,
+      "tiltOffset": 0,
+      "panRange": 540,
+      "tiltRange": 265,
+      "zoomMin": 42,
+      "zoomMax": 3,
+      "irisMin": 0,
+      "irisMax": 100
     },
     {
       "name": "Alpha",
@@ -291,12 +284,14 @@
       "panInvert": false,
       "tiltInvert": true,
       "panTiltSwap": false,
-      "panRange": 540.0,
-      "tiltRange": 240.0,
-      "zoomMin": 55.0,
+      "panOffset": 0,
+      "tiltOffset": 0,
+      "panRange": 540,
+      "tiltRange": 240,
+      "zoomMin": 55,
       "zoomMax": 7.6,
-      "irisMin": 0.0,
-      "irisMax": 100.0
+      "irisMin": 0,
+      "irisMax": 100
     },
     {
       "name": "Mythos",
@@ -312,12 +307,14 @@
       "panInvert": true,
       "tiltInvert": false,
       "panTiltSwap": false,
-      "panRange": 540.0,
-      "tiltRange": 244.0,
+      "panOffset": 0,
+      "tiltOffset": 0,
+      "panRange": 540,
+      "tiltRange": 244,
       "zoomMin": 47.3,
       "zoomMax": 6.5,
-      "irisMin": 0.0,
-      "irisMax": 100.0
+      "irisMin": 0,
+      "irisMax": 100
     },
     {
       "name": "Mythos2",
@@ -333,12 +330,14 @@
       "panInvert": true,
       "tiltInvert": false,
       "panTiltSwap": false,
-      "panRange": 540.0,
-      "tiltRange": 244.0,
+      "panOffset": 0,
+      "tiltOffset": 0,
+      "panRange": 540,
+      "tiltRange": 244,
       "zoomMin": 47.3,
       "zoomMax": 6.5,
-      "irisMin": 0.0,
-      "irisMax": 100.0
+      "irisMin": 0,
+      "irisMax": 100
     },
     {
       "name": "ERA300",
@@ -354,14 +353,14 @@
       "panInvert": true,
       "tiltInvert": true,
       "panTiltSwap": false,
-      "panOffset": 0.0,
-      "tiltOffset": 0.0,
-      "panRange": 540.0,
-      "tiltRange": 260.0,
-      "zoomMin": 28.0,
-      "zoomMax": 13.0,
-      "irisMin": 15.0,
-      "irisMax": 100.0
+      "panOffset": 0,
+      "tiltOffset": 0,
+      "panRange": 540,
+      "tiltRange": 260,
+      "zoomMin": 28,
+      "zoomMax": 13,
+      "irisMin": 15,
+      "irisMax": 100
     }
   ]
 }

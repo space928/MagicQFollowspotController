@@ -26,14 +26,6 @@ namespace MidiApp
     /// </summary>
     public partial class MainWindow : AdonisUI.Controls.AdonisWindow
     {
-
-#if DEBUG
-        //static string MIDI_DEVICE_NAME = "X-TOUCH";
-        //        static string MIDI_DEVICE_NAME = "Launchpad Pro";
-        static string MIDI_DEVICE_NAME = "loopMIDI";
-#else
-        static string MIDI_DEVICE_NAME = "loopMIDI";
-#endif
         private readonly string resourceFileName = @"Resources\resources.json";
         readonly string[] attributeNames = {"Dimmer", "Dim Mode", "Shutter", "Iris", "Pan", "Tilt", "Col1", "Col2",
                                             "Gobo1", "Gobo2", "Rotate1", "Rotate2", "Focus", "Zoom", "FX1 Prism",
@@ -92,19 +84,6 @@ namespace MidiApp
             faders = new float[256];
             encoderState = new bool[256];
 
-            //String strHostName = Dns.GetHostName();
-            //IPHostEntry iphostentry = Dns.GetHostEntry(strHostName);
-
-            //foreach (IPAddress ipaddress in iphostentry.AddressList)
-            //{
-            //    if (ipaddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-            //        ipInputMQ.Items.Add(ipaddress.ToString());
-
-            //    if (ipaddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-            //        ipInputTX.Items.Add(ipaddress.ToString());
-
-            //}
-
             context = SynchronizationContext.Current;
 
             for (int i = 0; i < attributeNames.Length; i++)
@@ -119,13 +98,13 @@ namespace MidiApp
 
             try
             {
-                MQ_IPAddress = IPAddress.Parse((string)appResources.network.magicQIP);
-                ARTNET_RXIPAddress = IPAddress.Parse((string)appResources.network.artNet.rxIP);
-                ARTNET_RXSubNetMask = IPAddress.Parse((string)appResources.network.artNet.rxSubNetMask);
-                ARTNET_TXIPAddress = IPAddress.Parse((string)appResources.network.artNet.txIP);
-                ARTNET_TXSubNetMask = IPAddress.Parse((string)appResources.network.artNet.txSubNetMask);
-                ARTNET_TXUseBroadcast = (bool)appResources.network.artNet.broadcast;
-                ARTNET_TXUniverse = (int)appResources.network.artNet.universe;
+                MQ_IPAddress = IPAddress.Parse(appResources.network.magicQIP);
+                ARTNET_RXIPAddress = IPAddress.Parse(appResources.network.artNet.rxIP);
+                ARTNET_RXSubNetMask = IPAddress.Parse(appResources.network.artNet.rxSubNetMask);
+                ARTNET_TXIPAddress = IPAddress.Parse(appResources.network.artNet.txIP);
+                ARTNET_TXSubNetMask = IPAddress.Parse(appResources.network.artNet.txSubNetMask);
+                ARTNET_TXUseBroadcast = appResources.network.artNet.broadcast;
+                ARTNET_TXUniverse = appResources.network.artNet.universe;
             }
             catch (Exception e)
             {
@@ -133,6 +112,23 @@ namespace MidiApp
                 Logger.Log("Cannot parse resource file\n" + e, Severity.FATAL);
                 Close();
             }
+        }
+
+        public void SetNetworkSettings(NetworkSettings settings)
+        {
+            appResources.network = settings;
+            MQ_IPAddress = IPAddress.Parse(appResources.network.magicQIP);
+            ARTNET_RXIPAddress = IPAddress.Parse(appResources.network.artNet.rxIP);
+            ARTNET_RXSubNetMask = IPAddress.Parse(appResources.network.artNet.rxSubNetMask);
+            ARTNET_TXIPAddress = IPAddress.Parse(appResources.network.artNet.txIP);
+            ARTNET_TXSubNetMask = IPAddress.Parse(appResources.network.artNet.txSubNetMask);
+            ARTNET_TXUseBroadcast = appResources.network.artNet.broadcast;
+            ARTNET_TXUniverse = appResources.network.artNet.universe;
+
+            SaveAppResource();
+            Logger.Log("Network condiguration changed restarting app...");
+            Application.Current.Shutdown();
+            System.Windows.Forms.Application.Restart();
         }
 
         IPAddress MQ_IPAddress = null;
@@ -145,22 +141,31 @@ namespace MidiApp
 
         public void SaveAppResource()
         {
+            if (File.Exists(resourceFileName))
+            {
+                try
+                {
+                    string res = File.ReadAllText(resourceFileName);
+                    File.WriteAllText(resourceFileName + ".bak", res);
+                }
+                catch (IOException e)
+                {
+                    Logger.Log($"Couldn't save backup file: {e}", Severity.ERROR);
+                }
+            }
+
             try
             {
-                string res = File.ReadAllText(resourceFileName);
-                File.WriteAllText(resourceFileName + ".bak", res);
+                JsonSerializerOptions options = new(AppResourcesData.JsonSerializerOptions)
+                {
+                    WriteIndented = true,
+                };
+                File.WriteAllText(resourceFileName, JsonSerializer.Serialize(appResources, options));
             }
-            catch (FileNotFoundException)
+            catch (IOException e)
             {
-
+                Logger.Log($"Couldn't save app resources: {e}", Severity.ERROR);
             }
-
-            JsonSerializerOptions options = new(AppResourcesData.JsonSerializerOptions)
-            {
-                WriteIndented = true,
-            };
-
-            File.WriteAllText(resourceFileName, JsonSerializer.Serialize(appResources, options));
         }
 
         public bool ReloadAppResources()
@@ -196,7 +201,8 @@ namespace MidiApp
                 SaveAppResource();
                 Environment.Exit(-1);
                 return false;
-            } catch (IOException)
+            }
+            catch (IOException)
             {
                 Logger.Log("Encountered IO exception while loading resources!", Severity.WARNING);
                 return false;
@@ -252,7 +258,7 @@ namespace MidiApp
                         {
                             Logger.Log("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
 
-                            if (InputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
+                            if (InputDevice.GetDeviceCapabilities(d).name.Contains(appResources.midiControllerSettings.midiDeviceName))
                             {
                                 inDevice = new InputDevice(d);
                                 break;
@@ -268,7 +274,7 @@ namespace MidiApp
                         for (var d = 0; d < OutputDevice.DeviceCount; d++)
                         {
                             Logger.Log("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
-                            if (OutputDevice.GetDeviceCapabilities(d).name.Contains(MIDI_DEVICE_NAME))
+                            if (OutputDevice.GetDeviceCapabilities(d).name.Contains(appResources.midiControllerSettings.midiDeviceName))
                             {
                                 outDevice = new OutputDevice(d);
                                 break;
@@ -277,7 +283,6 @@ namespace MidiApp
                         Thread.Sleep(500);
                     }
                 }
-
             });
         }
 
@@ -319,7 +324,6 @@ namespace MidiApp
                     ActivityLED.Fill = GreenFill;
                 }, null);
         }
-
 
         public static Color HSL2RGB(double h, double sl, double l)
         {
@@ -410,9 +414,7 @@ namespace MidiApp
             clientButtons[3] = Client3;
             clientButtons[4] = Client4;
 
-            if (context != null)
-            {
-                context.Post(delegate (object dummy)
+            context?.Post(delegate (object dummy)
                 {
 
                     for (int i = 0; i < clientHues.Length; i++)
@@ -427,16 +429,13 @@ namespace MidiApp
 
                     }
                 }, null);
-            }
 
             while (true)
             {
                 try
                 {
                     Thread.Sleep(100);
-                    if (context != null)
-                    {
-                        context.Post(delegate (object dummy)
+                    context?.Post(delegate (object dummy)
                         {
                             if (FSactivityTimer.ElapsedMilliseconds > 200)
                             {
@@ -453,7 +452,6 @@ namespace MidiApp
                                 }
                             }
                         }, null);
-                    }
                 }
                 catch (ThreadInterruptedException)
                 {
@@ -466,14 +464,11 @@ namespace MidiApp
         public void FSactivity(int clientID)
         {
             FSactivityTimer.Restart();
-            if (context != null)
-            {
-                context.Post(delegate (object dummy)
+            context?.Post(delegate (object dummy)
                 {
                     if (clientID >= 0)
                         clientButtons[clientID].Background = clientColours[clientID][2];
                 }, null);
-            }
         }
 
 
@@ -481,7 +476,6 @@ namespace MidiApp
 
         void ArtNetActivityMonitor()
         {
-
             while (true)
             {
                 try
@@ -499,7 +493,6 @@ namespace MidiApp
                 {
 
                 }
-
             }
         }
 
@@ -942,11 +935,10 @@ namespace MidiApp
                 oscListenerThread.Start();
 
                 StartListeningToClients(MQ_IPAddress);
-                
+
                 FollwSpot_dataGrid.ItemsSource = FollowSpots;
 
                 ArtNetListner();
-
             }
             catch (Exception ex)
             {
@@ -984,9 +976,9 @@ namespace MidiApp
             inDevice.SysCommonMessageReceived += HandleSysCommonMessageReceived;
             inDevice.SysExMessageReceived += HandleSysExMessageReceived;
             inDevice.SysRealtimeMessageReceived += HandleSysRealtimeMessageReceived;
-            inDevice.Error += new EventHandler<Sanford.Multimedia.ErrorEventArgs>(inDevice_Error);
+            inDevice.Error += new EventHandler<ErrorEventArgs>(inDevice_Error);
 
-            if (!MIDI_DEVICE_NAME.Contains("Loop"))
+            if (!appResources.midiControllerSettings.midiDeviceName.Contains("Loop"))
                 inDevice.StartRecording();
 
             ChannelMessageBuilder builder = new();
@@ -1180,13 +1172,37 @@ namespace MidiApp
 
             //            var addresses = GetAddressesFromInterfaceType();
             //            var addr = addresses.ToArray()[2];
+            try
+            {
+                m_socket.Open(ARTNET_RXIPAddress, ARTNET_RXSubNetMask);
 
-            m_socket.Open(ARTNET_RXIPAddress, ARTNET_RXSubNetMask);
-
-            //            addr = addresses.ToArray()[0];
-            m_TXsocket.Open(ARTNET_TXIPAddress, ARTNET_TXSubNetMask);
+                //            addr = addresses.ToArray()[0];
+                m_TXsocket.Open(ARTNET_TXIPAddress, ARTNET_TXSubNetMask);
+            }
+            catch (Exception e)
+            {
+                HandleNetworkError(e, "artnet");
+                ArtNetListner();
+            }
             //            m_TXsocket.Open(addr.Address, addr.NetMask);
             m_TXsocket.EnableBroadcast = ARTNET_TXUseBroadcast;
+        }
+
+        private static void HandleNetworkError(Exception e, string netType = "network")
+        {
+            Logger.Log($"Couldn't connect to {netType}! Check the network configuration is valid! \n{e}", Severity.FATAL);
+            var res = MessageBox.Show($"Couldn't connect to {netType}! Check the network configuration is valid!\n" +
+                "Would you like to open the network configuration wizard?", "Connection Error", MessageBoxButton.YesNo, MessageBoxImage.Stop);
+            if(res == MessageBoxResult.No)
+                Environment.Exit(-1);
+
+            // Open the network configuration window
+            NetworkSetupWizard setupWizard = new();
+
+            setupWizard.ShowDialog();
+
+            // The app should be restarted automatically if the network configuration is successful, if it isn't force exit here.
+            Environment.Exit(-1);
         }
 
         private void Window_Closed(object sender, EventArgs e)
@@ -1224,7 +1240,7 @@ namespace MidiApp
         {
 
             Activity(0);
-            Logger.Log("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
+            //Logger.Log("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
             if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 < 10))
             {
                 sender.Send(new OscMessage("/pb/" + e.Message.Data1, e.Message.Data2 / 127.0f));
@@ -1446,17 +1462,22 @@ namespace MidiApp
 
         private void SetupMQListener()
         {
-            int port = 8000;
-            receiver?.Dispose();
-            receiver = new OscReceiver(9000);
-            receiver.Connect();
+            try
+            {
+                receiver?.Dispose();
+                receiver = new OscReceiver(AppResources.network.oscRXPort);
+                receiver.Connect();
 
-            sender?.Dispose();
+                sender?.Dispose();
 
-            sender = new OscSender(MQ_IPAddress, port);
-            sender.Connect();
+                sender = new OscSender(MQ_IPAddress, AppResources.network.oscTXPort);
+                sender.Connect();
 
-            sender.Send(new OscMessage("/feedback/pb+exec"));
+                sender.Send(new OscMessage("/feedback/pb+exec"));
+            } catch (Exception ex)
+            {
+                HandleNetworkError(ex, "OSC");
+            }
         }
 
         private void AdonisWindow_PreviewLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)

@@ -8,16 +8,16 @@ namespace MidiApp
     [Serializable]
     public struct AppResourcesData
     {
-        public const int FILE_FORMAT_VERSION = 10;
+        public const int FILE_FORMAT_VERSION = 12;
 
         public int fileFormatVersion = FILE_FORMAT_VERSION;
+        public NetworkSettings network;
+        public MidiControllerSettings midiControllerSettings;
         public TheatrePhysicalData theatrePhysicalData;
         public LightingBarPhysicalData[] lightingBars;
-        public BoxPhysicalData[] boxes;
         public LightDefinition[] lights;
-        public NetworkSettings network;
+        public BoxPhysicalData[] boxes;
         public CameraPosition[] cameraPositions;
-        public Marker[] markers;
         public FixtureProfile[] fixtureProfiles;
 
         /// <summary>
@@ -42,9 +42,17 @@ namespace MidiApp
             boxes = new BoxPhysicalData[0];
             lights = new LightDefinition[1];
             cameraPositions = new CameraPosition[1];
-            markers = new Marker[0];
             fixtureProfiles = new FixtureProfile[1];
+            theatrePhysicalData = new TheatrePhysicalData();
+            network = new NetworkSettings();
+            midiControllerSettings = new MidiControllerSettings();
         }
+    }
+
+    [Serializable]
+    public struct MidiControllerSettings
+    {
+        public string midiDeviceName;
     }
 
     [Serializable]
@@ -96,8 +104,9 @@ namespace MidiApp
     [Serializable]
     public struct NetworkSettings
     {
-        public required string magicQIP;
-        public required ArtNetSettings artNet;
+        public string magicQIP;
+        public ArtNetSettings artNet;
+        public int oscRXPort, oscTXPort;
     }
 
     [Serializable]

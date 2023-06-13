@@ -1,0 +1,58 @@
+﻿<Window x:Class="MidiApp.NetworkSetupWizard"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:MidiApp"
+        mc:Ignorable="d"
+        Title="NetworkSetupWizard" Height="350" Width="400" Background="#FF1D1D1D">
+    <Window.Style>
+        <Style TargetType="Window" BasedOn="{StaticResource {x:Type Window}}"/>
+    </Window.Style>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"/>
+            <RowDefinition Height="40"/>
+            <RowDefinition Height="215*"/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+        <Label Content="Network Setup" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="28" FontWeight="Light"/>
+        <TextBlock TextWrapping="Wrap" Text="Note that MagicQ IP and Artnet RX IP should be the same and that Artnet TX IP must be on a different network adapter to the RX IP." Margin="10,0,0,0" VerticalAlignment="Top" FontWeight="Regular" Grid.Row="1" Foreground="#FFE0E0E0"/>
+        <ScrollViewer Grid.Row="2" Margin="10,0,10,0">
+            <StackPanel>
+                <DockPanel Margin="2">
+                    <Label Content="MagicQ IP" Padding="2" Margin="0,0,10,0"/>
+                    <ComboBox x:Name="ComboBoxMagicQIP" ItemsSource="{Binding Networks}"/>
+                </DockPanel>
+                <DockPanel Margin="2">
+                    <Label Content="Artnet RX IP" Padding="2" Margin="0,0,10,0"/>
+                    <ComboBox x:Name="ComboBoxArtnetRXIP"/>
+                </DockPanel>
+                <DockPanel Margin="2">
+                    <Label Content="Artnet TX IP" Padding="2" Margin="0,0,10,0"/>
+                    <ComboBox x:Name="ComboBoxArtnetTXIP"/>
+                </DockPanel>
+                <DockPanel Margin="2">
+                    <Label Content="Artnet Universe" Padding="2" Margin="0,0,10,0"/>
+                    <TextBox x:Name="TextBoxUniverse"/>
+                </DockPanel>
+                <DockPanel Margin="2">
+                    <Label Content="Artnet Broadcast" Padding="2" Margin="0,0,10,0"/>
+                    <CheckBox x:Name="CheckBoxBroadcast"/>
+                </DockPanel>
+                <DockPanel Margin="2">
+                    <Label Content="OSC RX Port" Padding="2" Margin="0,0,10,0"/>
+                    <TextBox x:Name="TextBoxOSCRXPort"/>
+                </DockPanel>
+                <DockPanel Margin="2">
+                    <Label Content="OSC TX Port" Padding="2" Margin="0,0,10,0"/>
+                    <TextBox x:Name="TextBoxOSCTXPort"/>
+                </DockPanel>
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" FlowDirection="RightToLeft">
+            <Button x:Name="ButtonSave" Content="Save" Width="100" Margin="5" Click="ButtonSave_Click"/>
+            <Button x:Name="ButtonCancel" Content="Cancel" Width="100" Margin="5" Click="ButtonCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
