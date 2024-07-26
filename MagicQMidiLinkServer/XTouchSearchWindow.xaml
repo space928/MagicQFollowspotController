@@ -1,4 +1,4 @@
-﻿<adonisControls:AdonisWindow x:Name="XTouchSearch" x:Class="MidiApp.XtouchSearcher"
+﻿<adonisControls:AdonisWindow x:Name="XTouchSearch" x:Class="MidiApp.XTouchSearcher"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"

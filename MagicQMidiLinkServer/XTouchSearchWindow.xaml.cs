@@ -7,9 +7,9 @@ namespace MidiApp
     /// <summary>
     /// Interaction logic for Window1.xaml
     /// </summary>
-    public partial class XtouchSearcher : AdonisUI.Controls.AdonisWindow
+    public partial class XTouchSearcher : AdonisUI.Controls.AdonisWindow
     {
-        public XtouchSearcher()
+        public XTouchSearcher()
         {
             InitializeComponent();
         }
@@ -17,7 +17,7 @@ namespace MidiApp
 
         public static void DoWorkWithModal(AdonisUI.Controls.AdonisWindow parent, Action<IProgress<string>> work)
         {
-            XtouchSearcher splash = new XtouchSearcher();
+            XTouchSearcher splash = new XTouchSearcher();
 
             splash.Owner = parent;
 

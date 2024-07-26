@@ -5,11 +5,14 @@ using Rug.Osc;
 using Sanford.Multimedia.Midi;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Windows;
@@ -27,7 +30,7 @@ namespace MidiApp
     public partial class MainWindow : AdonisUI.Controls.AdonisWindow
     {
         private readonly string resourceFileName = @"Resources\resources.json";
-        readonly string[] attributeNames = {"Dimmer", "Dim Mode", "Shutter", "Iris", "Pan", "Tilt", "Col1", "Col2",
+        public readonly string[] attributeNames = {"Dimmer", "Dim Mode", "Shutter", "Iris", "Pan", "Tilt", "Col1", "Col2",
                                             "Gobo1", "Gobo2", "Rotate1", "Rotate2", "Focus", "Zoom", "FX1 Prism",
                                             "FX2", "Cyan/Red", "Magenta/Green", "Yellow/Blue", "Col Mix / White", "Cont1 (Lamp on/off)", "Cont2 (Reset)", "Macro", "Macro2",
                                             "CTC", "CTO", "Col3 Speed", "Col4 (Amber)", "Gobo3", "Gobo4", "Gobo Rotate 3", "Prism Rot",
@@ -43,13 +46,13 @@ namespace MidiApp
 
         private static AppResourcesData appResources;
 
+        public ObservableCollection<string> LogList => Logger.logList;
+        private LogWindow logWindow;
+
         private OscSender sender;
         private OscReceiver receiver;
 
-        private const int SysExBufferSize = 128;
-
-        private InputDevice inDevice = null;
-        private OutputDevice outDevice = null;
+        private MidiDeviceManager midiDevice;
 
         private Thread oscListenerThread = null;
         private Thread activity_Thread = null;
@@ -60,29 +63,58 @@ namespace MidiApp
 
         private Thread mqConnection_Thread = null;
 
-        private Thread m_ResourceLoader_Thread = null;
+        private DateTime lastStatusMessageTime;
+        private Timer statusMessageUpdater;
+        private readonly TimeSpan statusMessageTime = TimeSpan.FromSeconds(5);
+        private readonly Brush warningBrush = new SolidColorBrush(Color.FromRgb(0xff, 0xcc, 0x10));
+        private readonly Brush errorBrush = new SolidColorBrush(Color.FromRgb(0xff, 0x10, 0x20));
+        private readonly Brush infoBrush = new SolidColorBrush(Color.FromRgb(0xaa, 0xaa, 0xaa));
 
-        private Dictionary<string, int> attributes = new Dictionary<string, int>();
+        private readonly Thread m_ResourceLoader_Thread = null;
 
-        private int selected_Attribute = 0;
+        public readonly Dictionary<string, int> attributes = new();
+
+        private int selectedAttribute = 0;
+        private int selectedPlayback = 0;
+
+        public int SelectedAttribute
+        {
+            get => selectedAttribute;
+            set
+            {
+                if (value < 0)
+                    value += attributeNames.Length;
+                selectedAttribute = value;
+
+                SendOSCMessage(new OscMessage("/pb/10/" + (selectedAttribute + 1), 1.00f));
+
+                context?.Post(_ =>
+                {
+                    attrName.Text = attributeNames[selectedAttribute];
+                }, null);
+            }
+        }
+        public int SelectedPlayback
+        {
+            get => selectedPlayback;
+            set
+            {
+                selectedPlayback = value;
+            }
+        }
 
         private SynchronizationContext context;
-
-        private bool[] buttons;
-        private float[] faders;
-        private bool[] encoderState;
-
-        public int selectedPlayback = 0;
 
         public MainWindow()
         {
             InitializeComponent();
 
-            Logger.Log("Starting Followspot Server...");
+            Logger.Log($"Starting MagicQ Midi Link Server");
+            var assembly = Assembly.GetExecutingAssembly();
+            string copyright = string.IsNullOrEmpty(assembly.Location) ? "" : FileVersionInfo.GetVersionInfo(assembly.Location).LegalCopyright;
+            Logger.Log($"  version: {assembly.GetName().Version}; {copyright}");
 
-            buttons = new bool[256];
-            faders = new float[256];
-            encoderState = new bool[256];
+            //Logger.Log("Starting Followspot Server...");
 
             context = SynchronizationContext.Current;
 
@@ -92,9 +124,11 @@ namespace MidiApp
             }
 
             ReloadAppResources();
-            m_ResourceLoader_Thread = new Thread(new ThreadStart(ResourceLoaderLoop));
+            m_ResourceLoader_Thread = new(new ThreadStart(ResourceLoaderLoop));
             m_ResourceLoader_Thread.IsBackground = true;
             m_ResourceLoader_Thread.Start();
+
+            midiDevice = new(this);
 
             try
             {
@@ -126,7 +160,7 @@ namespace MidiApp
             ARTNET_TXUniverse = appResources.network.artNet.universe;
 
             SaveAppResource();
-            Logger.Log("Network condiguration changed restarting app...");
+            SetStatusMessage("Network configuration changed, restarting app...");
             Application.Current.Shutdown();
             System.Windows.Forms.Application.Restart();
         }
@@ -181,7 +215,7 @@ namespace MidiApp
                     Logger.Log($"Resource file has an invalid file format version: {data.fileFormatVersion} expected: {AppResourcesData.FILE_FORMAT_VERSION}.", Severity.FATAL);
                     Environment.Exit(-1);
                 }
-                Logger.Log("Updated app resources!");
+                SetStatusMessage("Updated app resources!");
                 appResources = data;
                 return true;
             }
@@ -211,13 +245,13 @@ namespace MidiApp
 
         public void ResourceLoaderLoop()
         {
-            DateTime time = System.IO.File.GetLastWriteTime(resourceFileName);
+            DateTime time = File.GetLastWriteTime(resourceFileName);
 
             while (true)
             {
                 try
                 {
-                    DateTime latestTime = System.IO.File.GetLastWriteTime(resourceFileName);
+                    DateTime latestTime = File.GetLastWriteTime(resourceFileName);
 
                     if (latestTime > time)
                     {
@@ -239,62 +273,21 @@ namespace MidiApp
                 }
                 catch (ThreadInterruptedException)
                 {
-
+                    //Logger.Log($"Resource loader interrupted: \n{ex.Message}", Severity.WARNING);
                 }
             }
         }
 
-        public void LookForXTouch()
-        {
-            XtouchSearcher.DoWorkWithModal(this, progress =>
-            {
-
-                while (inDevice == null)
-                {
-                    if (inDevice == null)
-                    {
-                        progress.Report("Searching.");
-                        for (var d = 0; d < InputDevice.DeviceCount; d++)
-                        {
-                            Logger.Log("Midi Input Device: " + InputDevice.GetDeviceCapabilities(d).name);
-
-                            if (InputDevice.GetDeviceCapabilities(d).name.Contains(appResources.midiControllerSettings.midiDeviceName))
-                            {
-                                inDevice = new InputDevice(d);
-                                break;
-                            }
-                        }
-                        Thread.Sleep(500);
-                    }
-
-
-                    if (outDevice == null)
-                    {
-                        progress.Report("Searching..");
-                        for (var d = 0; d < OutputDevice.DeviceCount; d++)
-                        {
-                            Logger.Log("Midi Output Device: " + OutputDevice.GetDeviceCapabilities(d).name);
-                            if (OutputDevice.GetDeviceCapabilities(d).name.Contains(appResources.midiControllerSettings.midiDeviceName))
-                            {
-                                outDevice = new OutputDevice(d);
-                                break;
-                            }
-                        }
-                        Thread.Sleep(500);
-                    }
-                }
-            });
-        }
+        #region Activity Monitors
 
         Brush GreenFill = null;
         Brush RedFill = null;
         Brush WhiteFill = null;
 
-        Stopwatch activityTimer = Stopwatch.StartNew();
+        readonly Stopwatch activityTimer = Stopwatch.StartNew();
 
         void ActivityMonitor()
         {
-
             while (true)
             {
                 try
@@ -310,24 +303,22 @@ namespace MidiApp
                 }
                 catch (ThreadInterruptedException)
                 {
-
+                    //Logger.Log($"Activity monitor interrupted: \n{ex.Message}", Severity.WARNING);
                 }
-
             }
         }
 
         public void Activity(int type)
         {
             activityTimer.Restart();
-            context?.Post(delegate (object dummy)
-                {
-                    ActivityLED.Fill = GreenFill;
-                }, null);
+            context?.Post(_ =>
+            {
+                ActivityLED.Fill = GreenFill;
+            }, null);
         }
 
         public static Color HSL2RGB(double h, double sl, double l)
         {
-
             double v;
             double r, g, b;
 
@@ -388,11 +379,13 @@ namespace MidiApp
                         break;
                 }
             }
-            Color rgb = new Color();
-            rgb.A = 0xff;
-            rgb.R = Convert.ToByte(r * 255.0f);
-            rgb.G = Convert.ToByte(g * 255.0f);
-            rgb.B = Convert.ToByte(b * 255.0f);
+            Color rgb = new()
+            {
+                A = 0xff,
+                R = (byte)(r * 255.0f),
+                G = (byte)(g * 255.0f),
+                B = (byte)(b * 255.0f),
+            };
             return rgb;
         }
 
@@ -414,61 +407,58 @@ namespace MidiApp
             clientButtons[3] = Client3;
             clientButtons[4] = Client4;
 
-            context?.Post(delegate (object dummy)
+            context?.Post(_ =>
+            {
+                for (int i = 0; i < clientHues.Length; i++)
                 {
+                    SolidColorBrush[] colors = new SolidColorBrush[3];
 
-                    for (int i = 0; i < clientHues.Length; i++)
-                    {
-                        SolidColorBrush[] colors = new SolidColorBrush[3];
+                    colors[0] = new SolidColorBrush(HSL2RGB(clientHues[i], 20.0, 25.0));
+                    colors[1] = new SolidColorBrush(HSL2RGB(clientHues[i], 50.0, 35.0));
+                    colors[2] = new SolidColorBrush(HSL2RGB(clientHues[i], 100.0, 50.0));
 
-                        colors[0] = new SolidColorBrush(HSL2RGB(clientHues[i], 20.0, 25.0));
-                        colors[1] = new SolidColorBrush(HSL2RGB(clientHues[i], 50.0, 35.0));
-                        colors[2] = new SolidColorBrush(HSL2RGB(clientHues[i], 100.0, 50.0));
-
-                        clientColours[i] = colors;
-
-                    }
-                }, null);
+                    clientColours[i] = colors;
+                }
+            }, null);
 
             while (true)
             {
                 try
                 {
                     Thread.Sleep(100);
-                    context?.Post(delegate (object dummy)
+                    context?.Post(_ =>
+                    {
+                        if (FSactivityTimer.ElapsedMilliseconds > 200)
                         {
-                            if (FSactivityTimer.ElapsedMilliseconds > 200)
+                            for (int i = 0; i < clientHues.Length; i++)
                             {
-                                for (int i = 0; i < clientHues.Length; i++)
+                                if (clientHandlers[i] != null)
                                 {
-                                    if (clientHandlers[i] != null)
-                                    {
-                                        clientButtons[i].Background = clientColours[i][1];
-                                    }
-                                    else
-                                    {
-                                        clientButtons[i].Background = clientColours[i][0];
-                                    }
+                                    clientButtons[i].Background = clientColours[i][1];
+                                }
+                                else
+                                {
+                                    clientButtons[i].Background = clientColours[i][0];
                                 }
                             }
-                        }, null);
+                        }
+                    }, null);
                 }
                 catch (ThreadInterruptedException)
                 {
-
+                    //Logger.Log($"FSActivity monitor interrupted: \n{ex.Message}", Severity.WARNING);
                 }
-
             }
         }
 
         public void FSactivity(int clientID)
         {
             FSactivityTimer.Restart();
-            context?.Post(delegate (object dummy)
-                {
-                    if (clientID >= 0)
-                        clientButtons[clientID].Background = clientColours[clientID][2];
-                }, null);
+            context?.Post(_ =>
+            {
+                if (clientID >= 0)
+                    clientButtons[clientID].Background = clientColours[clientID][2];
+            }, null);
         }
 
 
@@ -481,17 +471,17 @@ namespace MidiApp
                 try
                 {
                     Thread.Sleep(100);
-                    context?.Post(delegate (object dummy)
+                    context?.Post(_ =>
+                    {
+                        if (ArtNetactivityTimer.ElapsedMilliseconds > 200)
                         {
-                            if (ArtNetactivityTimer.ElapsedMilliseconds > 200)
-                            {
-                                ArtNetActivityLED.Fill = WhiteFill;
-                            }
-                        }, null);
+                            ArtNetActivityLED.Fill = WhiteFill;
+                        }
+                    }, null);
                 }
                 catch (ThreadInterruptedException)
                 {
-
+                    //Logger.Log($"ArtNet Activity monitor interrupted: \n{ex.Message}", Severity.WARNING);
                 }
             }
         }
@@ -499,46 +489,45 @@ namespace MidiApp
         public void ArtNetactivity(int type)
         {
             ArtNetactivityTimer.Restart();
-            context?.Post(delegate (object dummy)
-                {
-                    ArtNetActivityLED.Fill = GreenFill;
-                }, null);
+            context?.Post(_ =>
+            {
+                ArtNetActivityLED.Fill = GreenFill;
+            }, null);
         }
 
         Stopwatch connectionTimer = Stopwatch.StartNew();
 
         void MqConnection_Monitor()
         {
-
             while (true)
             {
                 try
                 {
                     Thread.Sleep(500);
-                    context?.Post(delegate (object dummy)
+                    context?.Post(_ =>
+                    {
+                        if (connectionTimer.ElapsedMilliseconds > 1000)
                         {
-                            if (connectionTimer.ElapsedMilliseconds > 1000)
-                            {
-                                ConnectionLED.Fill = WhiteFill;
-                            }
-                        }, null);
+                            ConnectionLED.Fill = WhiteFill;
+                        }
+                    }, null);
                 }
                 catch (ThreadInterruptedException)
                 {
-
+                    //Logger.Log($"MQ Activity monitor interrupted: \n{ex.Message}", Severity.WARNING);
                 }
-
             }
         }
 
         public void ActivityMQ(int type)
         {
             connectionTimer.Restart();
-            context?.Post(delegate (object dummy)
-                {
-                    ConnectionLED.Fill = GreenFill;
-                }, null);
+            context?.Post(_ =>
+            {
+                ConnectionLED.Fill = GreenFill;
+            }, null);
         }
+        #endregion
 
         void OSCListenLoop()
         {
@@ -550,7 +539,7 @@ namespace MidiApp
                 {
                     justRecieved = false;
 
-                    if (outDevice != null)
+                    if (midiDevice?.IsConnected ?? false)
                     {
                         OscPacket pkt = receiver.Receive();
                         justRecieved = true;
@@ -559,241 +548,205 @@ namespace MidiApp
                         Activity(1);
                         ActivityMQ(1);
 
-                        //  /exec/1/1, 0f
-                        //  /exec/1/57, 0f
-                        //  /pb/1, 0.796078f
-                        //  /pb/1/flash, 1
-                        //  /pb/3, 0f
-                        //  /pb/3/flash, 0
-
                         OscMessage msg = OscMessage.Parse(pkt.ToString());
 
                         var parts = msg.Address.Split('/');
 
-                        if (parts[1].Equals("exec"))
+                        if (parts.Length > 0)
                         {
-                            int page = Convert.ToInt32(parts[2]) - 1;
-                            int execNum = Convert.ToInt32(parts[3]) - 1;
-                            bool value = ((float)(msg[0]) > 0.5f);
-                            int buttonId = 64 * page + execNum;
-
-                            if (buttons[buttonId] != value)
+                            if (parts[1].Equals("exec"))
                             {
-                                buttons[buttonId] = value;
-
-                                ChannelMessageBuilder builder = new()
-                                {
-                                    Command = ChannelCommand.NoteOn,
-                                    Data1 = (execNum + 16),
-                                    Data2 = buttons[buttonId] ? 1 : 0
-                                };
-                                builder.Build();
-                                outDevice.Send(builder.Result);
-                                // Logger.Log("SetButton: " + (buttonId).ToString() + " " + buttons[buttonId]);
+                                ParseOSCExecMessage(msg, parts);
                             }
-
-                        }
-                        else if (parts[1].Equals("pb"))
-                        {
-                            int playback = Convert.ToInt32(parts[2]);
-                            if (parts.Length > 3)
+                            else if (parts[1].Equals("pb"))
                             {
-                                if (parts[3].Equals("flash"))
-                                {
-
-                                }
+                                ParseOSCPlaybackMessage(msg, parts);
                             }
-                            else
+                            else if (parts[1].Equals("fspot"))
                             {
-                                float value = ((float)(msg[0]));
-                                if ((int)(127.0f * faders[playback]) != (int)(127.0f * value))
-                                {
-                                    faders[playback] = value;
-
-                                    ChannelMessageBuilder builder = new ChannelMessageBuilder();
-                                    builder.Command = ChannelCommand.Controller;
-                                    builder.MidiChannel = 0;
-                                    if (playback >= 10)
-                                    {
-                                        //for (var j = 0; j < 9; j++)
-                                        //{
-                                        //    builder.MidiChannel = 1;
-                                        //    builder.Data1 = playback + j;
-                                        //    builder.Data2 = (byte)(j*2);
-                                        //    builder.Build();
-                                        //    outDevice.Send(builder.Result);
-                                        //    builder.MidiChannel = 0;
-                                        //    builder.Data1 = playback+j;
-                                        //    builder.Data2 = (byte)(value * 127.0f);
-                                        //    builder.Build();
-                                        //    outDevice.Send(builder.Result);
-                                        //}
-                                    }
-                                    else
-                                    {
-                                        builder.Data1 = playback;
-                                        builder.Data2 = (byte)(value * 127.0f);
-                                        builder.Build();
-                                        outDevice.Send(builder.Result);
-                                    }
-
-                                    //Logger.Log("Set Fader: " + (playback).ToString() + " " + value);
-                                }
-
+                                ParseOSCFspotMessage(msg, parts);
                             }
-
-                        }
-                        // fspot/start/<mouse1 spots list>$message+<mouse2 spots list>$message@<viewID>
-                        else if (parts[1].Equals("fspot"))
-                        {
-                            if (parts.Length >= 2)
+                            else if (parts[1].Equals("sel"))
                             {
-                                if (parts[2] == "start")
-                                {
-                                    string ids = msg.ToString();
-                                    int viewID = -1;
-                                    ids = ids.Replace("\"", "");
-
-                                    if (!ids.EndsWith("/"))
-                                    {
-                                        int viewpos = ids.LastIndexOf('@');
-                                        if (viewpos > 0)
-                                        {
-                                            viewID = int.Parse(ids.Substring(viewpos + 1));
-                                            ids = ids[..viewpos];
-                                        }
-                                        else
-                                        {
-                                            viewpos = ids.Length;
-                                        }
-
-                                        ids = ids[(ids.LastIndexOf('/') + 1)..];
-
-                                        foreach (FollowSpot spot in FollowSpots)
-                                        {
-                                            spot.MouseControlID = -1;
-                                        }
-
-                                        int mouse = 0;
-
-                                        foreach (string s in ids.Split('+'))
-                                        {
-                                            string spots = s;
-                                            string message = "";
-                                            int message_Pos = spots.IndexOf("$");
-                                            if (message_Pos != -1)
-                                            {
-                                                message = spots.Substring(message_Pos + 1);
-                                                spots = spots.Substring(0, message_Pos);
-                                            }
-
-                                            foreach (string i in spots.Split(','))
-                                            {
-                                                string idspot = i;
-                                                int zoom_Pos = idspot.IndexOf("z");
-                                                if (zoom_Pos != -1)
-                                                {
-                                                    //message = idspot.Substring(zoom_Pos + 1);
-                                                    idspot = idspot.Substring(0, zoom_Pos);
-                                                }
-
-                                                int headId = Int32.Parse(idspot);
-                                                foreach (FollowSpot spot in FollowSpots)
-                                                {
-                                                    if (spot.Head == headId)
-                                                    {
-                                                        spot.MouseControlID = mouse;
-                                                        spot.MouseControlID = mouse;
-                                                    }
-                                                }
-                                            }
-                                            SendClientMessage(mouse, message, spots, 3);
-
-                                            mouse++;
-                                        }
-                                    }
-                                }
-                                else if (parts[2] == "stop")
-                                {
-                                    foreach (FollowSpot spot in FollowSpots)
-                                    {
-                                        spot.MouseControlID = -1;
-                                    }
-
-                                    SendClientMessage(0, "", "", 3);
-                                    SendClientMessage(1, "", "", 3);
-                                    SendClientMessage(2, "", "", 3);
-                                }
-                                // fspot/message/message+message
-                                // fspot/message
-                                else if (parts[2] == "message")
-                                {
-
-                                    string ids = msg.ToString();
-                                    ids = ids.Replace("\"", "");
-
-                                    if (!ids.EndsWith("/"))
-                                    {
-                                        ids = ids.Substring(ids.LastIndexOf('/') + 1);
-                                        if (parts.Length == 3)
-                                        {
-                                            ids = "";
-                                        }
-                                        int mouse = 0;
-
-                                        foreach (string message in ids.Split('+'))
-                                        {
-                                            if (message != "$")
-                                                SendClientMessage(mouse, message, "0", 3);
-                                        }
-                                    }
-                                }
-                            }
-
-                        }
-                        else if (parts[1].Equals("sel"))
-                        {
-                            if (parts.Length >= 2)
-                            {
-                                if (Int32.TryParse(parts[2], out int selected_pb))
-                                {
-                                    ChannelMessageBuilder builder = new ChannelMessageBuilder();
-                                    for (int j = 0; j < 9; j++)
-                                    {
-                                        buttons[j + 40 - 16] = false;
-                                    }
-                                    buttons[selected_pb + 39 - 16] = true;
-                                    selectedPlayback = selected_pb;
-                                    Logger.Log("selectedPlayback: " + selectedPlayback);
-                                    builder.Command = ChannelCommand.NoteOn;
-                                    for (int j = 0; j < 9; j++)
-                                    {
-                                        builder.Data1 = j + 40;
-                                        builder.Data2 = buttons[j + 40 - 16] ? 2 : 0;
-                                        builder.Build();
-                                        outDevice.Send(builder.Result);
-                                    }
-                                }
+                                ParseOSCSelMessage(parts);
                             }
                         }
-
+                        else
+                        {
+                            throw new Exception($"Malformed OSC message: '{msg}'");
+                        }
                     }
-                }
-                catch (System.Exception e)
-                {
-                    Logger.Log("Exception Thrown" + e);
-                }
 
-                try
-                {
                     if (!justRecieved)
                         Thread.Sleep(100);
                 }
-                catch (System.Threading.ThreadInterruptedException)
+                catch (ThreadInterruptedException)
+                { }
+                catch (Exception e)
+                {
+                    Logger.Log($"Error while parsing OSC message: \n{e}", Severity.WARNING);
+                }
+            }
+        }
+
+        private void ParseOSCSelMessage(string[] parts)
+        {
+            if (parts.Length >= 2)
+            {
+                if (int.TryParse(parts[2], out int selectedPB))
+                {
+                    selectedPlayback = selectedPB;
+                    midiDevice?.SendSelMessage(selectedPB);
+                    Logger.Log("selectedPlayback: " + selectedPlayback);
+                }
+            }
+        }
+
+        private void ParseOSCFspotMessage(OscMessage msg, string[] parts)
+        {
+            // fspot/start/<mouse1 spots list>$message+<mouse2 spots list>$message@<viewID>
+            if (parts.Length >= 2)
+            {
+                if (parts[2] == "start")
+                {
+                    string ids = msg.ToString();
+                    int viewID = -1;
+                    ids = ids.Replace("\"", "");
+
+                    if (!ids.EndsWith("/"))
+                    {
+                        int viewpos = ids.LastIndexOf('@');
+                        if (viewpos > 0)
+                        {
+                            viewID = int.Parse(ids.Substring(viewpos + 1));
+                            ids = ids[..viewpos];
+                        }
+                        else
+                        {
+                            viewpos = ids.Length;
+                        }
+
+                        ids = ids[(ids.LastIndexOf('/') + 1)..];
+
+                        foreach (FollowSpot spot in FollowSpots)
+                        {
+                            spot.MouseControlID = -1;
+                        }
+
+                        int mouse = 0;
+
+                        foreach (string s in ids.Split('+'))
+                        {
+                            string spots = s;
+                            string message = "";
+                            int message_Pos = spots.IndexOf("$");
+                            if (message_Pos != -1)
+                            {
+                                message = spots.Substring(message_Pos + 1);
+                                spots = spots.Substring(0, message_Pos);
+                            }
+
+                            foreach (string i in spots.Split(','))
+                            {
+                                string idspot = i;
+                                int zoom_Pos = idspot.IndexOf("z");
+                                if (zoom_Pos != -1)
+                                {
+                                    //message = idspot.Substring(zoom_Pos + 1);
+                                    idspot = idspot.Substring(0, zoom_Pos);
+                                }
+
+                                int headId = int.Parse(idspot);
+                                foreach (FollowSpot spot in FollowSpots)
+                                {
+                                    if (spot.Head == headId)
+                                    {
+                                        spot.MouseControlID = mouse;
+                                        spot.MouseControlID = mouse;
+                                    }
+                                }
+                            }
+                            SendClientMessage(mouse, message, spots, 3);
+
+                            mouse++;
+                        }
+                    }
+                }
+                else if (parts[2] == "stop")
+                {
+                    foreach (FollowSpot spot in FollowSpots)
+                    {
+                        spot.MouseControlID = -1;
+                    }
+
+                    SendClientMessage(0, "", "", 3);
+                    SendClientMessage(1, "", "", 3);
+                    SendClientMessage(2, "", "", 3);
+                }
+                // fspot/message/message+message
+                // fspot/message
+                else if (parts[2] == "message")
+                {
+
+                    string ids = msg.ToString();
+                    ids = ids.Replace("\"", "");
+
+                    if (!ids.EndsWith("/"))
+                    {
+                        ids = ids.Substring(ids.LastIndexOf('/') + 1);
+                        if (parts.Length == 3)
+                        {
+                            ids = "";
+                        }
+                        int mouse = 0;
+
+                        foreach (string message in ids.Split('+'))
+                        {
+                            if (message != "$")
+                                SendClientMessage(mouse, message, "0", 3);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ParseOSCPlaybackMessage(OscMessage msg, string[] parts)
+        {
+            //  /pb/1, 0.796078f
+            //  /pb/1/flash, 1
+            //  /pb/3, 0f
+            //  /pb/3/flash, 0
+            if (parts.Length < 2 || !int.TryParse(parts[2], out int playback))
+                throw new Exception($"Malformed OSC message (while parsing playback): '{msg.Address}'");
+
+            if (parts.Length > 3)
+            {
+                if (parts[3] == "flash")
                 {
 
                 }
             }
+            else
+            {
+                midiDevice?.SendFaderMessage(msg, playback);
+            }
+        }
+
+        private void ParseOSCExecMessage(OscMessage msg, string[] parts)
+        {
+            //  /exec/1/1, 0f
+            //  /exec/1/57, 0f
+            if (parts.Length < 2 || !int.TryParse(parts[2], out int page))
+                throw new Exception($"Malformed OSC message (while parsing page): '{msg.Address}'");
+            if (parts.Length < 3 || !int.TryParse(parts[3], out int execNum))
+                throw new Exception($"Malformed OSC message (while parsing execNum): '{msg.Address}'");
+
+            midiDevice?.SendExecMessage(msg, page-1, execNum-1);
+        }
+
+        public void SendOSCMessage(OscMessage msg)
+        {
+            sender?.Send(msg);
         }
 
         public void SendClientMessage(int clientID, string message, string spots, int timeout)
@@ -864,30 +817,24 @@ namespace MidiApp
                     }
                 }
             }
-
-        }
-
-        public void Mover(object sender, System.Windows.Input.MouseEventArgs e)
-        {
-            Logger.Log("Mouse position" + e.GetPosition(this));
         }
 
         private void Window_Loaded(object source, RoutedEventArgs e)
         {
             context = SynchronizationContext.Current;
 
-            if (inDevice == null)
+            midiDevice ??= new(this);
+            if (!midiDevice.IsConnected)
             {
-                LookForXTouch();
-
-                if (inDevice == null)
+                midiDevice.LookForXTouch();
+                if (!midiDevice.IsConnected)
                 {
                     Close();
                     return;
                 }
             }
 
-            attrName.Text = attributeNames[selected_Attribute];
+            attrName.Text = attributeNames[SelectedAttribute];
 
             try
             {
@@ -923,8 +870,10 @@ namespace MidiApp
                     mqConnection_Thread.Start();
                 }
 
+                Logger.EnableSync();
+
                 SetupMQListener();
-                SetupMidiDevice();
+                midiDevice?.SetupMidiDevice();
                 LoadLightDefinitions();
 
                 ipInputMQ.Content = MQ_IPAddress;
@@ -939,6 +888,28 @@ namespace MidiApp
                 FollwSpot_dataGrid.ItemsSource = FollowSpots;
 
                 ArtNetListner();
+
+                reconnectMidiButton.Click += (o, e) =>
+                {
+                    SetStatusMessage("Attempting to reconnect MIDI device...");
+
+                    var oldDevice = midiDevice;
+                    midiDevice = null;
+                    oldDevice.Dispose();
+                    midiDevice = new(this);
+                    midiDevice.LookForXTouch();
+                    midiDevice.SetupMidiDevice();
+
+                    //SetStatusMessage("Reconnected!"); ;
+                };
+                reconnectMQButton.Click += (o, e) =>
+                {
+                    SetStatusMessage("Attempting to reconnect to MagicQ...");
+
+                    SetupMQListener();
+
+                    //SetStatusMessage("Reconnected!");
+                };
             }
             catch (Exception ex)
             {
@@ -948,7 +919,66 @@ namespace MidiApp
                 Close();
             }
 
+            Logger.OnWarning += (o, e) =>
+            {
+                context.Post(_ =>
+                {
+                    lastStatusMessageTime = DateTime.UtcNow;
+                    statusLabel.Content = e.LogEntry;
+                    statusLabel.Foreground = warningBrush;
+                }, null);
+            };
+            Logger.OnError += (o, e) =>
+            {
+                context.Post(_ =>
+                {
+                    lastStatusMessageTime = DateTime.UtcNow;
+                    statusLabel.Content = e.LogEntry;
+                    statusLabel.Foreground = errorBrush;
+                }, null);
+            };
+
+            statusMessageUpdater = new Timer(_ =>
+            {
+                context.Post(_ =>
+                {
+                    if (DateTime.UtcNow - lastStatusMessageTime > statusMessageTime)
+                    {
+                        statusLabel.Content = $"MagicQ MIDI Link version {Assembly.GetExecutingAssembly().GetName().Version}";
+                        statusLabel.Foreground = infoBrush;
+                    }
+                }, null);
+            }, null, 0, 1000);
+
+            statusBar.MouseDown += (o, e) =>
+            {
+                if (logWindow != null)
+                {
+                    logWindow.Close();
+                    logWindow = null;
+                }
+
+                logWindow = new()
+                {
+                    DataContext = this,
+                };
+                logWindow.Show();
+            };
+
             // this.Topmost = true;
+        }
+
+        public void SetStatusMessage(string message, [CallerMemberName] string caller = "")
+        {
+            Logger.Log(message, Severity.INFO, caller);
+            context?.Post(_ =>
+            {
+                if (statusLabel == null)
+                    return;
+                lastStatusMessageTime = DateTime.UtcNow;
+                statusLabel.Content = message;
+                statusLabel.Foreground = infoBrush;
+            }, null);
         }
 
         private static void LoadLightDefinitions()
@@ -968,65 +998,6 @@ namespace MidiApp
 
                 FollowSpots.Add(spot);
             }
-        }
-
-        private void SetupMidiDevice()
-        {
-            inDevice.ChannelMessageReceived += HandleChannelMessageReceived;
-            inDevice.SysCommonMessageReceived += HandleSysCommonMessageReceived;
-            inDevice.SysExMessageReceived += HandleSysExMessageReceived;
-            inDevice.SysRealtimeMessageReceived += HandleSysRealtimeMessageReceived;
-            inDevice.Error += new EventHandler<ErrorEventArgs>(inDevice_Error);
-
-            if (!appResources.midiControllerSettings.midiDeviceName.Contains("Loop"))
-                inDevice.StartRecording();
-
-            ChannelMessageBuilder builder = new();
-
-            builder.Command = ChannelCommand.Controller;
-            builder.Data1 = 127;
-            builder.Data2 = 0;
-            builder.Build();
-            outDevice.Send(builder.Result);
-
-            builder.Command = ChannelCommand.ProgramChange;
-            builder.MidiChannel = 1;
-            builder.Data1 = 0;
-            builder.Data2 = 0;
-            builder.Build();
-            outDevice.Send(builder.Result);
-
-            builder.Command = ChannelCommand.Controller;
-
-            for (var i = 0; i < 127; i++)
-            {
-                builder.Data1 = i;
-                builder.Data2 = 0;
-                builder.Build();
-                outDevice.Send(builder.Result);
-            }
-
-            builder.Command = ChannelCommand.NoteOn;
-            builder.Data1 = 0;
-            builder.Data2 = 1;
-            builder.Build();
-            outDevice.Send(builder.Result);
-
-            for (var i = 0; i < 39; i++)
-            {
-                builder.Data1 = i;
-                builder.Data2 = (i == 32) ? 2 : 0;
-                builder.Build();
-                outDevice.Send(builder.Result);
-            }
-
-            selectedPlayback = 9;
-
-            builder.Command = ChannelCommand.NoteOn;
-            builder.Data1 = 38;
-            builder.Data2 = 2;
-            builder.Build();
-            outDevice.Send(builder.Result);
         }
 
         public static IEnumerable<(IPAddress Address, IPAddress NetMask)> GetAddressesFromInterfaceType(NetworkInterfaceType? interfaceType = null,
@@ -1164,7 +1135,6 @@ namespace MidiApp
 
         void ArtNetListner()
         {
-
             m_socket = new ArtNetSocket();
             m_TXsocket = new ArtNetSocket();
 
@@ -1193,7 +1163,7 @@ namespace MidiApp
             Logger.Log($"Couldn't connect to {netType}! Check the network configuration is valid! \n{e}", Severity.FATAL);
             var res = MessageBox.Show($"Couldn't connect to {netType}! Check the network configuration is valid!\n" +
                 "Would you like to open the network configuration wizard?", "Connection Error", MessageBoxButton.YesNo, MessageBoxImage.Stop);
-            if(res == MessageBoxResult.No)
+            if (res == MessageBoxResult.No)
                 Environment.Exit(-1);
 
             // Open the network configuration window
@@ -1207,16 +1177,8 @@ namespace MidiApp
 
         private void Window_Closed(object sender, EventArgs e)
         {
-            if (inDevice != null)
-            {
-                inDevice.Close();
-            }
-
-            if (outDevice != null)
-            {
-                outDevice.Close();
-            }
-
+            midiDevice?.Dispose();
+            statusMessageUpdater?.Dispose();
 
             if (receiver != null)
             {
@@ -1224,240 +1186,8 @@ namespace MidiApp
                 receiver = null;
             }
 
-            if (oscListenerThread != null)
-                oscListenerThread.Interrupt();
+            oscListenerThread?.Interrupt();
             Application.Current.Shutdown();
-
-        }
-
-        private void inDevice_Error(object source, ErrorEventArgs e)
-        {
-            MessageBox.Show(e.Error.Message, "Error!", MessageBoxButton.OK, MessageBoxImage.Stop);
-            Logger.Log(e.Error, Severity.ERROR);
-        }
-
-        private void HandleChannelMessageReceived(object source, ChannelMessageEventArgs e)
-        {
-
-            Activity(0);
-            //Logger.Log("Channel Message: " + e.Message.Command.ToString() + ", " + e.Message.Data1 + ", " + e.Message.Data2);
-            if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 < 10))
-            {
-                sender.Send(new OscMessage("/pb/" + e.Message.Data1, e.Message.Data2 / 127.0f));
-                faders[e.Message.Data1] = e.Message.Data2 / 127.0f;
-            }
-            else if ((e.Message.Command == ChannelCommand.Controller) && (e.Message.Data1 >= 10))
-            {
-                int attribute = (e.Message.Data1 - 10);
-                int delta = e.Message.Data2;
-
-                if (e.Message.Data1 == 25)
-                {
-                    attribute = selected_Attribute;
-                }
-
-                if (e.Message.Data1 == 24)
-                {
-                    delta = (e.Message.Data2 < 64) ? 1 : -1;
-
-                    selected_Attribute = (selected_Attribute + delta) % (attributeNames.Length);
-
-                    if (selected_Attribute < 0)
-                        selected_Attribute += attributeNames.Length;
-
-                    sender.Send(new OscMessage("/pb/10/" + (selected_Attribute + 1), 1.00f));
-
-                    context.Post(delegate (object dummy)
-                    {
-                        attrName.Text = attributeNames[selected_Attribute];
-                    }, null);
-
-                }
-                else if (e.Message.Data2 < 64)
-                {
-                    if (encoderState[e.Message.Data1 - 10])
-                    {
-                        delta *= 2;
-                    }
-
-                    sender.Send(new OscMessage("/rpc", "\\07," + (attribute) + "," + (delta) + "H"));
-                    //Logger.Log("Controller: " + "/rpc " + "\\07, " + (attribute) + ", " + (delta) + "," + ((encoderState[e.Message.Data1 - 10]) ? "1" : "0") + "H");
-                }
-                else
-                {
-                    delta = e.Message.Data2 - 64;
-                    if (encoderState[e.Message.Data1 - 10])
-                    {
-                        delta *= 2;
-                    }
-                    sender.Send(new OscMessage("/rpc", "\\08," + (attribute) + "," + (delta) + "H"));
-                    //Logger.Log("Controller: " +"/rpc " + "\\08, " + (attribute) + ", " + (delta) + "," +((encoderState[e.Message.Data1 - 10]) ?"1":"0")+ "H");
-                }
-
-                //Logger.Log("Controller: " + e.Message.Data1 + ":" + e.Message.Data2);
-
-            }
-            else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 < 16) && (e.Message.Data2 == 127))
-            {
-                encoderState[e.Message.Data1] = !encoderState[e.Message.Data1];
-                ChannelMessageBuilder builder = new ChannelMessageBuilder();
-                builder.Command = ChannelCommand.Controller;
-                int encoderId = e.Message.Data1 + 10;
-
-                builder.MidiChannel = 1;
-                builder.Data1 = encoderId;
-                builder.Data2 = encoderState[e.Message.Data1] ? 0 : 4;
-                builder.Build();
-                outDevice.Send(builder.Result);
-                builder.MidiChannel = 0;
-                builder.Data1 = encoderId;
-                builder.Data2 = encoderState[e.Message.Data1] ? 0 : 64;
-                builder.Build();
-                outDevice.Send(builder.Result);
-            }
-            else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 16) && (e.Message.Data1 <= 39) && (e.Message.Data2 == 127))
-            {
-                ChannelMessageBuilder builder = new ChannelMessageBuilder();
-                buttons[e.Message.Data1 - 16] = !buttons[e.Message.Data1 - 16];
-
-                sender.Send(new OscMessage("/exec/" + (e.Message.Data1 - 15), buttons[e.Message.Data1 - 16] ? 1 : 0));
-                //  Logger.Log("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
-            }
-            else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 16) && (e.Message.Data1 <= 39) && (e.Message.Data2 == 0))
-            {
-                ChannelMessageBuilder builder = new ChannelMessageBuilder();
-
-                builder.Command = ChannelCommand.NoteOn;
-                builder.Data1 = (e.Message.Data1);
-                builder.Data2 = buttons[e.Message.Data1 - 16] ? 1 : 0;
-                builder.Build();
-                outDevice.Send(builder.Result);
-                // Logger.Log("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
-                //                sender.Send(new OscMessage("/feedback/exec"));
-            }
-            else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 >= 50))
-            {
-                ChannelMessageBuilder builder = new ChannelMessageBuilder();
-                for (int j = 0; j < 9; j++)
-                {
-                    buttons[j + 40 - 16] = false;
-                }
-                buttons[e.Message.Data1 - 16] = true;
-                selectedPlayback = e.Message.Data1 - 39;
-                Logger.Log("selectedPlayback: " + selectedPlayback);
-                builder.Command = ChannelCommand.NoteOn;
-                for (int j = 0; j < 9; j++)
-                {
-                    builder.Data1 = j + 40;
-                    builder.Data2 = buttons[j + 40 - 16] ? 2 : 0;
-                    builder.Build();
-                    outDevice.Send(builder.Result);
-                }
-                //  Logger.Log("Send: /exec/" + (e.Message.Data1 - 15).ToString() + buttons[e.Message.Data1-16]);
-            }
-            else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 >= 40) && (e.Message.Data1 <= 48) && (e.Message.Data2 == 0))
-            {
-                ChannelMessageBuilder builder = new ChannelMessageBuilder();
-
-                builder.Command = ChannelCommand.NoteOn;
-                for (int j = 0; j < 9; j++)
-                {
-                    builder.Data1 = j + 40;
-                    builder.Data2 = buttons[j + 40 - 16] ? 2 : 0;
-                    builder.Build();
-                    outDevice.Send(builder.Result);
-                }
-                //Logger.Log("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
-            }
-            else if ((e.Message.Command == ChannelCommand.NoteOn) && (e.Message.Data1 >= 49) && (e.Message.Data1 <= 54) && (e.Message.Data2 >= 50))
-            {
-                if (selectedPlayback > 0)
-                {
-                    switch (e.Message.Data1)
-                    {
-                        case 49:
-                            sender.Send(new OscMessage("/rpc", selectedPlayback + "B"));
-                            break;
-                        case 50:
-                            sender.Send(new OscMessage("/rpc", selectedPlayback + "F"));
-                            break;
-                        case 51:
-                            sender.Send(new OscMessage("/rpc", "\\31H"));
-                            break;
-                        case 52:
-                            sender.Send(new OscMessage("/rpc", "\\30H"));
-                            break;
-                        case 53:
-                            sender.Send(new OscMessage("/rpc", selectedPlayback + "S"));
-                            sender.Send(new OscMessage("/rpc", selectedPlayback + "R"));
-                            break;
-                        case 54:
-                            sender.Send(new OscMessage("/rpc", selectedPlayback + "G"));
-                            break;
-                    }
-                }
-
-                //Logger.Log("SetButton: " + e.Message.Data1.ToString() + " " + buttons[e.Message.Data1]);
-                //                sender.Send(new OscMessage("/feedback/exec"));
-
-            }
-            else if ((e.Message.Command == ChannelCommand.NoteOff) && (e.Message.Data1 == 54))
-            {
-                ChannelMessageBuilder b2 = new ChannelMessageBuilder();
-
-                b2.Command = ChannelCommand.NoteOn;
-                b2.MidiChannel = 1;
-
-                b2.Data1 = 38;
-                b2.Data2 = 2;
-                b2.Build();
-                outDevice.Send(b2.Result);
-
-            }
-
-        }
-
-
-        private void HandleSysExMessageReceived(object source, SysExMessageEventArgs e)
-        {
-            context.Post(delegate (object dummy)
-            {
-                string result = "\n\n"; ;
-
-                foreach (byte b in e.Message)
-                {
-                    result += string.Format("{0:X2} ", b);
-                }
-
-                //                sysExRichTextBox.AppendText(result);
-            }, null);
-        }
-
-        private void HandleSysCommonMessageReceived(object source, SysCommonMessageEventArgs e)
-        {
-        }
-
-
-        Stopwatch FWatch = Stopwatch.StartNew();
-        double FLastMillis;
-        double FDiff;
-        double FDiffTimeStamp;
-        int counter;
-        int FLastTimestamp;
-
-        private void HandleSysRealtimeMessageReceived(object source, SysRealtimeMessageEventArgs e)
-        {
-            counter++;
-            if (counter % 24 == 0)
-            {
-                var millis = FWatch.Elapsed.TotalMilliseconds;
-                FDiff = 60000 / (millis - FLastMillis);
-                FLastMillis = millis;
-
-                var timestamp = e.Message.Timestamp;
-                FDiffTimeStamp = 60000.0 / (timestamp - FLastTimestamp);
-                FLastTimestamp = timestamp;
-            }
         }
 
         private void SetupMQListener()
@@ -1469,12 +1199,15 @@ namespace MidiApp
                 receiver.Connect();
 
                 sender?.Dispose();
-
                 sender = new OscSender(MQ_IPAddress, AppResources.network.oscTXPort);
                 sender.Connect();
 
                 sender.Send(new OscMessage("/feedback/pb+exec"));
-            } catch (Exception ex)
+
+                Thread.Sleep(50); // Lazy race-condition avoidal lol
+                SetStatusMessage("Connected to MagicQ!");
+            }
+            catch (Exception ex)
             {
                 HandleNetworkError(ex, "OSC");
             }
@@ -1636,8 +1369,8 @@ namespace MidiApp
                     // Start an asynchronous socket to listen for connections.  
                     Logger.Log("Waiting for a connection...");
                     Socket client = listener.Accept();
-                    Logger.Log("Connected ...");
-                    ClientHandler ch = new ClientHandler(client, this);
+                    SetStatusMessage($"Connected to followspot client: {(IPEndPoint)client.RemoteEndPoint}");
+                    ClientHandler ch = new (client, this);
 
                     ch.Start();
                 }

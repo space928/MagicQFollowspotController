@@ -14,7 +14,8 @@
     "oscTXPort": 9000
   },
   "midiControllerSettings": {
-    "midiDeviceName": "X-TOUCH"
+    //"midiDeviceName": "X-TOUCH"
+    "midiDeviceName": "loop"
   },
   "theatrePhysicalData": {
     "width": 16.068,

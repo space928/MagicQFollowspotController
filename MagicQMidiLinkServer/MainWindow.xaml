@@ -14,8 +14,9 @@
     <Grid Margin="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto" MinHeight="159"/>
             <RowDefinition/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="1*"/>
@@ -32,13 +33,10 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="100*"/>
+                    <!--<RowDefinition Height="100*"/>-->
                 </Grid.RowDefinitions>
-                <Label x:Name="label" Content="MQ IP Address:" VerticalAlignment="Center" Margin="0" Height="16" HorizontalContentAlignment="Stretch"/>
-                <Label x:Name="ipInputMQ" Margin="0,2,26,2" VerticalAlignment="Top" Height="24" Grid.Column="1"/>
-                <Label x:Name="label_Copy" Content="ArtNet Interface" VerticalAlignment="Center" Margin="0" Height="16" HorizontalContentAlignment="Stretch" Grid.Row="1"/>
-                <Label x:Name="ipInputTX" Margin="0,2,26,2" VerticalAlignment="Top" Height="24" Grid.Column="1" Grid.Row="1"/>
+                <Label x:Name="label" Content="MQ IP Address:" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="0,2" Height="16" HorizontalContentAlignment="Stretch"/>
+                <Label x:Name="ipInputMQ" Margin="0,2,26,2" VerticalContentAlignment="Center" VerticalAlignment="Top" Height="24" Grid.Column="1"/>
                 <Ellipse x:Name="ConnectionLED" HorizontalAlignment="Right" Height="20" Stroke="Black" VerticalAlignment="Center" Width="20" Grid.Column="1" Margin="0">
                     <Ellipse.Fill>
                         <RadialGradientBrush>
@@ -47,15 +45,8 @@
                         </RadialGradientBrush>
                     </Ellipse.Fill>
                 </Ellipse>
-                <Label x:Name="labelActivity" Content="MIDI Activity" Margin="0" VerticalAlignment="Center" Height="16" Grid.Row="3"/>
-                <Ellipse x:Name="ActivityLED" Margin="0,2" Stroke="Black" HorizontalAlignment="Right" Width="20" Height="20" VerticalAlignment="Center" Grid.Row="3" Grid.Column="1">
-                    <Ellipse.Fill>
-                        <RadialGradientBrush>
-                            <GradientStop Color="#FF1DFF1D" Offset="0"/>
-                            <GradientStop Color="#FF00B900" Offset="1"/>
-                        </RadialGradientBrush>
-                    </Ellipse.Fill>
-                </Ellipse>
+                <Label x:Name="label_Copy" Content="ArtNet Interface" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="0,2" Height="16" HorizontalContentAlignment="Stretch" Grid.Row="1"/>
+                <Label x:Name="ipInputTX" Margin="0,2,26,2" VerticalContentAlignment="Center" VerticalAlignment="Top" Height="24" Grid.Column="1" Grid.Row="1"/>
                 <Ellipse x:Name="ArtNetActivityLED" HorizontalAlignment="Right" Height="20" Stroke="Black" VerticalAlignment="Center" Width="20" Grid.Row="1" Grid.Column="1" Margin="0">
                     <Ellipse.Fill>
                         <RadialGradientBrush>
@@ -64,12 +55,23 @@
                         </RadialGradientBrush>
                     </Ellipse.Fill>
                 </Ellipse>
+                <Label x:Name="labelActivity" Content="MIDI Activity" Margin="0,2" VerticalContentAlignment="Center" VerticalAlignment="Top" Height="24" Grid.Row="2"/>
+                <Ellipse x:Name="ActivityLED" Margin="0,2" Stroke="Black" HorizontalAlignment="Right" Width="20" Height="20" VerticalAlignment="Center" Grid.Row="2" Grid.Column="1">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="#FF1DFF1D" Offset="0"/>
+                            <GradientStop Color="#FF00B900" Offset="1"/>
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
+                <Button x:Name="reconnectMQButton" Content="Reconnect MQ" Grid.Column="0" Margin="0,0,1,0" Grid.Row="4"/>
+                <Button x:Name="reconnectMidiButton" Content="Reconnect MIDI" Grid.Column="1" Margin="1,0,0,0" Grid.Row="4"/>
             </Grid>
         </GroupBox>
         <GroupBox x:Name="groupBox_Right" Header="Attributes" Margin="0,4,5,41" Grid.Column="1" Grid.Row="1">
             <Grid Margin="0">
-                <Label x:Name="labelActivity_Copy1" Content="Attribute:" Margin="0,6,0,0" VerticalAlignment="Top" HorizontalAlignment="Left" Width="80"/>
-                <TextBox x:Name="attrName" Height="24" Margin="95,2,0,0" TextWrapping="Wrap" Text="Attribute" VerticalAlignment="Top"/>
+                <Label x:Name="labelActivity_Copy1" Height="34" Content="Attribute:" Margin="0,2,0,0" VerticalAlignment="Top" VerticalContentAlignment="Center" HorizontalAlignment="Left" Width="80"/>
+                <TextBox x:Name="attrName" Height="34" FontSize="16" Margin="95,2,0,0" TextWrapping="Wrap" Text="Attribute" VerticalAlignment="Top"/>
             </Grid>
         </GroupBox>
         <GroupBox x:Name="groupBox_Spots" Header="Follow Spots" Margin="5,8,5,5" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2">
@@ -100,7 +102,7 @@
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>
-        <Image x:Name="Title_jpg" Margin="10,0,0,0" Source="Resources\TitleDk.png" VerticalAlignment="Top" Grid.ColumnSpan="2" HorizontalAlignment="Left" Width="622" Height="97"/>
+        <Image x:Name="Title_jpg" Margin="10,0,0,0" Source="Resources\TitleDk.png" VerticalAlignment="Center" Grid.ColumnSpan="2" HorizontalAlignment="Left" Width="622" Height="97"/>
 
         <!--<Button x:Name="button" Content="Show 3D Tracker" Margin="0,0,5,5" Click="stopButton_Click" HorizontalAlignment="Right" Width="195" Height="31" VerticalAlignment="Bottom" Grid.Column="1" Grid.Row="1"/>-->
         <CheckBox x:Name="alwaysOnTop" Content="Stay on top" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,0,10" Width="136" Unchecked="alwaysOnTop_Unchecked" Checked="alwaysOnTop_Checked" Height="16" VerticalAlignment="Bottom" Grid.Row="1"/>
@@ -110,6 +112,10 @@
             <Button x:Name="Client2" Grid.Column="2" Width="31" HorizontalAlignment="Left" Margin="73,0,0,0" Background="#FF33334D" Content="3" FontSize="16"/>
             <Button x:Name="Client3" Grid.Column="3" Width="31" HorizontalAlignment="Left" Margin="109,0,0,0" Background="#FF4D334D" Content="4" FontSize="16"/>
             <Button x:Name="Client4" Width="31" HorizontalAlignment="Left" Margin="145,0,0,0" Background="#FF4D4D33" Content="5" FontSize="16"/>
+        </Grid>
+
+        <Grid x:Name="statusBar" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Background="{DynamicResource {x:Static adonisUi:Brushes.Layer0BackgroundBrush}}">
+            <Label Margin="4,2" x:Name="statusLabel" Content="MagicQ MIDI Link" Foreground="{DynamicResource {x:Static adonisUi:Brushes.DisabledForegroundBrush}}"/>
         </Grid>
     </Grid>
 </adonisControls:AdonisWindow>
